@@ -115,7 +115,7 @@ SYNQT posts `{"idEntity":"order-1042-1"}` to your `callbackUrl` on every status 
 
 ### 8. Go live
 
-Switch to `SynqtEnvironment.live` and your live merchant credentials, test one real payment per method you offer on both an iPhone and an Android phone, and work through [Security and compliance](#security-and-compliance) and [Before merchants use this](#before-merchants-use-this).
+Switch to `SynqtEnvironment.live` and your live merchant credentials, test one real payment per method you offer on both an iPhone and an Android phone, and work through [Security and compliance](#security-and-compliance).
 
 ## The payment sheet
 
@@ -123,7 +123,7 @@ Switch to `SynqtEnvironment.live` and your live merchant credentials, test one r
 
 Only the close button or the system back gesture closes the sheet, never a tap outside it or a swipe down, and neither works while a payment is being sent. Prefilled fields that pass their checks are hidden; when every mandatory field is prefilled, the sheet pays straight away. If SYNQT refuses a value, the form comes back with the error under that field. Screen readers announce every error as it appears.
 
-For methods the payer finishes in another app (Zapper, SnapScan, UPI and others), the sheet stays open and shows the next step: an "Open Zapper" button, the QR code, the amount, the reference and a live countdown. The method's app opens by itself once if it is installed: the https link is opened only in a non-browser app (a universal link on iOS, an App Link on Android), then on the app's own URL scheme where one is known (SnapScan). If no app takes it, the button opens the link in the browser. For Pay offline the next step is "How to pay": the one-time reference, the bank account to transfer to with copy buttons, and the "Before you pay" notice (draft wording, see below).
+For methods the payer finishes in another app (Zapper, SnapScan, UPI and others), the sheet stays open and shows the next step: an "Open Zapper" button, the QR code, the amount, the reference and a live countdown. The method's app opens by itself once if it is installed: the https link is opened only in a non-browser app (a universal link on iOS, an App Link on Android), then on the app's own URL scheme where one is known (SnapScan). If no app takes it, the button opens the link in the browser. For Pay offline the next step is "How to pay": the one-time reference, the bank account to transfer to with copy buttons, and the "Before you pay" notice.
 
 The sheet follows the phone's light or dark setting, also when it changes while the sheet is open, even when the app forces a theme of its own. Text grows with the phone's text size, and at the largest sizes the summary and account details stack each label above its value.
 
@@ -191,7 +191,7 @@ A payment method response that doesn't fit its model reads as `UnknownPaymentMet
 Every piece of text the SDK shows a payer is a translated string keyed by the Android SDK's resource names, so one translation serves all three SDKs:
 
 - `lib/src/l10n/sheet_strings_en.dart`: the sheet's own text (headings, buttons, next-step, error and failure messages), generated too, with the same wording in every SYNQT SDK.
-- `lib/src/l10n/form_strings_en.dart`: method names, field labels, hints, validation messages and tile questions, generated with the code that uses it (see below), so don't edit it by hand.
+- `lib/src/l10n/form_strings_en.dart`: method names, field labels, hints, validation messages and tile questions, generated with the code that uses it (see below).
 
 To add a language, copy both files to `<language>` versions (for example `sheet_strings_af.dart`), translate the text keeping the keys and the `%1$s` and `%1$d` placeholders, and list them in `lib/src/strings.dart`. The sheet follows the phone's language; a string with no translation falls back to English. SYNQT's own error descriptions and bank or provider names stay in English, as they come from SYNQT's servers.
 
@@ -201,7 +201,7 @@ To add a language, copy both files to `<language>` versions (for example `sheet_
 - Only your backend's own status check proves a payment. The return URL, the sheet closing and `payin.status()` do not.
 - This SDK has no card code. CARD is offered only with the separate card add-on, for PCI DSS compliant merchants, which draws, checks and encrypts the card fields itself. The generated `CardMethod` has no raw card number field. The add-on uses this SDK's add-on API (`package:synqt/addon.dart`), which apps never need.
 - Payment details include personal information (ID numbers, account numbers, phone numbers, emails) covered by POPIA. Don't log requests, responses or `SynqtApiException` descriptions alongside customer data.
-- The iOS SDK ships an Apple privacy manifest. A Flutter package cannot add one to the host app, so apps using this SDK on iOS must declare the same data types in their own `PrivacyInfo.xcprivacy`: copy the categories from the iOS SDK's `Sources/SynqtSDK/Resources/PrivacyInfo.xcprivacy`. The same applies to the Google Play data safety form. Both are drafts for SYNQT's compliance owner.
+- The iOS SDK ships an Apple privacy manifest. A Flutter package cannot add one to the host app, so apps using this SDK on iOS must declare the same data types in their own `PrivacyInfo.xcprivacy`: copy the categories from the iOS SDK's `Sources/SynqtSDK/Resources/PrivacyInfo.xcprivacy`. The same applies to the Google Play data safety form.
 
 ## Differences from the native SDKs
 
@@ -256,7 +256,7 @@ The SYNQT calls, the payment methods and their fields, the field rules, the word
 
 ## Generated code and the SYNQT API version
 
-The payment method models (`lib/src/payment_methods.dart`), the sheet's fields (`lib/src/method_forms.dart`), all of the sheet's text (`lib/src/l10n/form_strings_en.dart` and `sheet_strings_en.dart`), the colours (`lib/src/ui/colors.dart`) and the shared field test cases (`test/field_cases_test.dart`) are generated from SYNQT's OpenAPI spec and SYNQT's shared tables, so don't edit them by hand. CARD's raw card number fields are left out of this SDK, as they put the app in PCI DSS scope; only the card add-on has them.
+The payment method models (`lib/src/payment_methods.dart`), the sheet's fields (`lib/src/method_forms.dart`), all of the sheet's text (`lib/src/l10n/form_strings_en.dart` and `sheet_strings_en.dart`), the colours (`lib/src/ui/colors.dart`) and the shared field test cases (`test/field_cases_test.dart`) are generated from SYNQT's OpenAPI spec and SYNQT's shared tables. CARD's raw card number fields are left out of this SDK, as they put the app in PCI DSS scope; only the card add-on has them.
 
 They are generated from SYNQT API 2.84 today, and the spec lives with the generator app. A new SYNQT API version replaces the generated files in one commit, and every SYNQT SDK moves to the same version together, so they all ask payers for the same things in the same words.
 
@@ -276,34 +276,6 @@ The example app lives in the [synqt-examples](https://github.com/synqt-pay/synqt
 
 The SDK is licensed under the Apache License, Version 2.0: see `LICENSE` and `NOTICE`. It bundles the Instrument Sans typeface (SIL Open Font License 1.1) and Phosphor icons (MIT); their notices are in `THIRD_PARTY_NOTICES.md`, and `fonts/InstrumentSans-OFL.txt` has the font licence in full.
 
-## Release
-
-The SDK and the card add-on are released together, with the same version.
-
-1. Set `version` in `pubspec.yaml` and add the release to `CHANGELOG.md`. Set the same version in the card add-on, with its `synqt` constraint.
-2. Check `flutter analyze && flutter test && flutter pub publish --dry-run` passes.
-3. Merge to `main`, then tag the merge commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-4. A member of the SYNQT verified publisher on pub.dev runs `flutter pub publish` from that tag.
-5. Release the card add-on (its README), then move the example app to the new version.
-
-Never move or reuse a tag once pushed, and a version published on pub.dev can't be replaced.
-
-## Before merchants use this
-
-Still open, for the people who own them (the same list as the native SDKs', as the wording is shared):
-
-- payment method names not covered by the payment glossary, and the generated field labels and hints (including the "OTT Voucher" and "Voucher PIN" drafts, the tile wording for Capitec Pay and PayShap, PayShap's "Which ID do you want to give?", the payer-facing failure messages in `sheet_strings_en.dart` (one per SYNQT failure reason code, new and in draft), and the provider menu's "Provider" label)
-- the "Before you pay" notice for Pay offline, which needs sign-off from SYNQT's compliance owner
-- the privacy data categories each host app must declare (see Security and compliance), a draft for SYNQT's compliance owner
-- the provisional mobile type scale
-- the typeface: Instrument Sans (SIL Open Font License) replaces Inter in every SDK, chosen on 16 November 2026 and awaiting the Innovation Manager's sign-off
-- the light Orbit loader puts aqua `#27FFE2` on a light background, which the brand reserves for dark backgrounds; it is decorative and sits beside "Processing your payment"
-- copying a value shows a short "copied" message on both platforms, as the iOS SDK does; Android 13 and later also shows its own clipboard confirmation
-
-The design decisions recorded in the Android README (wordmark artwork, colours, field borders, label style, Phosphor icons) apply here unchanged.
-
 ## Status
 
 Built with Flutter 3.47.9 (Dart 3.13.7): `flutter analyze` reports no issues and the test suite passes (62 tests, including widget tests that open the sheet in light and dark, check and refuse fields, switch tiles, and walk the Pay offline next step). The generated models, form fields and English strings match the iOS SDK's output exactly. The demo builds as a debug APK and for the iOS Simulator, and launches on the iPhone 18 Pro simulator (iOS 27) and an Android 17 emulator. Set `SYNQT_SHOTS` to a folder when running `flutter test test/payment_sheet_test.dart` to save a PNG of each sheet screen.
-
-Not yet done: opening the sheet in the running demo, a run on a physical device or on iOS and Android versions below those above, a payment against Sandbox with a real token (including a return from `presentPaymentApp`), the QR and open-the-app next steps on a real phone, the space below the Pay button above the home indicator and navigation bar, and `intent:` links from the Payment Web App on a real Android phone.
