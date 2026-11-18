@@ -1,0 +1,41 @@
+name: synqt
+description: Take SYNQT payins in a Flutter app on iOS and Android, with a Synqt-branded payment sheet that asks the payer only for what their payment method needs.
+version: 0.1.0
+homepage: https://github.com/synqt-pay/synqt-flutter
+repository: https://github.com/synqt-pay/synqt-flutter
+issue_tracker: https://github.com/synqt-pay/synqt-flutter/issues
+topics:
+  - payments
+  - payment-sheet
+  - checkout
+  - south-africa
+  - synqt
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_svg: ^2.0.10
+  http: ^1.2.2
+  url_launcher: ^6.3.0
+  webview_flutter: ^4.8.0
+  webview_flutter_wkwebview: ^3.13.0 # already in through webview_flutter; imported for the iOS back swipe
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  fonts:
+    - family: SynqtInstrumentSans
+      fonts:
+        - asset: fonts/synqt_instrument_sans_regular.ttf
+          weight: 400
+        - asset: fonts/synqt_instrument_sans_medium.ttf
+          weight: 500
+        - asset: fonts/synqt_instrument_sans_semibold.ttf
+          weight: 600

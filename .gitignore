@@ -1,0 +1,20 @@
+# Build output and caches
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Machine-specific
+.DS_Store
+.idea/
+*.iml
+
+# Credentials must never be committed: merchant keys, keystores, env files
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+.env
+.env.*

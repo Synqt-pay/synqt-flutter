@@ -1,0 +1,121 @@
+// Payer-facing text written for the payment sheet. Field labels, hints and method names are in
+// form_strings_en.dart. Both are generated: don't edit them by hand. Translations go in
+// sheet_strings_<language>.dart with the same keys, keeping the placeholders, and are listed in strings.dart.
+// Keys and text match the iOS and Android SDKs. Draft wording awaiting sign-off is listed in the README.
+// ignore_for_file: lines_longer_than_80_chars
+
+const sheetStringsEn = <String, String>{
+  // Form
+  'synqt_sheet_your_details': 'Your details',
+  'synqt_sheet_intro': 'Enter your details to pay with %1\$s.',
+  'synqt_sheet_intro_nothing_to_enter': 'No details needed. Tap Pay to continue.',
+  'synqt_sheet_pay': 'Pay %1\$s',
+  'synqt_sheet_secure_checkout': 'Secure checkout',
+  'synqt_sheet_choose_one': 'Choose one',
+  'synqt_sheet_no_preference': 'No preference',
+  'synqt_sheet_hint_bank_code': 'The code from your bank or provider',
+  'synqt_sheet_hint_provider_code': 'The code from your provider',
+  'synqt_sheet_required': 'Required',
+  'synqt_sheet_check_field': 'Check this field',
+
+  // A field's label, then its error, in the banner when the field itself is not shown.
+  'synqt_sheet_field_error': '%1\$s: %2\$s',
+
+  // Header, summary and processing
+  'synqt_sheet_logo': 'Synqt',
+  'synqt_sheet_close': 'Close',
+  'synqt_sheet_amount_due': 'Amount due',
+  'synqt_sheet_paying': 'Paying',
+  'synqt_sheet_payment_method': 'Payment method',
+  'synqt_sheet_reference': 'Reference',
+  'synqt_sheet_processing': 'Processing your payment',
+  'synqt_sheet_processing_detail': 'Keep this screen open. This can take a few seconds.',
+
+  // Next step, for methods the payer finishes in another app
+  'synqt_next_title': 'Finish paying with %1\$s',
+  'synqt_next_open_or_scan':
+      'Open %1\$s on this phone to approve the payment, or scan the code below with %1\$s on another phone.',
+  'synqt_next_open': 'Open %1\$s on this phone to approve the payment.',
+  'synqt_next_scan': 'Scan the code below with %1\$s on another phone.',
+  'synqt_next_pay_exactly': 'Pay exactly %1\$s, not the original amount.',
+  'synqt_next_time_left': 'Time left to pay',
+  'synqt_next_expired': 'The time to pay has run out. Start a new payment to try again.',
+  'synqt_next_reference': 'Reference: %1\$s',
+  'synqt_next_open_app': 'Open %1\$s',
+  'synqt_next_done': 'Done',
+  'synqt_next_no_app': 'Nothing on this phone can open %1\$s. Scan the QR code from another phone instead.',
+  'synqt_next_qr_description': 'QR code to pay with %1\$s',
+  'synqt_next_qr_loading': 'Loading the QR code',
+  'synqt_next_qr_caption': 'Scan with %1\$s on another phone',
+
+  // Next step for Pay offline: a bank transfer from the payer's own banking app
+  'synqt_next_transfer_title': 'How to pay',
+  'synqt_next_transfer': 'Open your banking app and make a bank transfer to the account below.',
+  'synqt_next_bank': 'Bank',
+  'synqt_next_account_name': 'Account holder',
+  'synqt_next_account_number': 'Account number',
+  'synqt_next_account_type': 'Account type',
+  'synqt_next_bank_code': 'Bank code',
+  'synqt_next_branch': 'Branch',
+  'synqt_next_reference_title': 'One-time payment reference',
+  'synqt_next_reference_needed': 'Your payment will fail without this reference.',
+
+  // The copied value's label, such as "Account number".
+  'synqt_next_copy': 'Copy %1\$s',
+  'synqt_next_copied': '%1\$s copied',
+  'synqt_next_notice_title': 'Before you pay',
+
+  // A numbered point of the notice: its number, then its text.
+  'synqt_next_notice_item': '%1\$d. %2\$s',
+  'synqt_next_notice_exact': 'Transfer the exact amount due and use the one-time payment reference above.',
+  'synqt_next_notice_once':
+      'The reference works for this payment only. Return to the merchant to make another payment.',
+  'synqt_next_notice_fees':
+      'You pay your bank\'s transfer fee. Transfers made outside banking hours may take longer to arrive.',
+  'synqt_next_notice_own_account':
+      'Pay from your own bank account. Payments from someone else\'s account are not accepted.',
+  'synqt_next_qr_failed': 'The QR code could not be loaded.',
+
+  // Errors. SYNQT's own descriptions arrive in English from its servers and are shown as sent.
+  'synqt_error_with_code': '%1\$s (%2\$s)',
+  'synqt_error_unreachable': 'Could not reach SYNQT. Check the connection and try again.',
+  'synqt_error_system': 'SYNQT could not process this payment (SYSTEM). Try again later or choose another method.',
+  'synqt_error_already_started':
+      'This payment was already started with another payment method. Start a new payment to pay another way.',
+  'synqt_error_session_expired': 'The payment session has expired (HTTP 401). Start the payment again.',
+  'synqt_error_not_allowed': 'This payment session is not allowed to create this payment (HTTP 403).',
+  'synqt_error_http': 'The payment could not be created (HTTP %1\$d).',
+
+  // Failure reasons, for payments SYNQT accepted and then failed, and for SYNQT's refusals of what the payer entered
+  'synqt_failure_general': 'Your payment could not be completed. Please try again, or choose another payment method.',
+  'synqt_failure_payment_process_error':
+      'Something went wrong while processing your payment. Please try again, or choose another payment method. If it keeps happening, contact the merchant.',
+  'synqt_failure_expired': 'The payment was not approved in time. Start a new payment to try again.',
+  'synqt_failure_amount_mismatch':
+      'The amount received did not match the amount due. Contact the merchant about this payment.',
+  'synqt_failure_method_unavailable':
+      'This payment method is not available for this payment right now. Choose another payment method.',
+  'synqt_failure_bank_unavailable':
+      'This bank is not available for this payment right now. Choose another bank or payment method.',
+  'synqt_failure_security':
+      'This payment could not be completed for security reasons. Choose another payment method, or contact the merchant.',
+  'synqt_failure_balance': 'There is not enough money in the account for this payment.',
+  'synqt_failure_account_number': 'Check the account number and try again.',
+  'synqt_failure_account_name': 'The name does not match the name on the account. Check it and try again.',
+  'synqt_failure_phone_number': 'Check the mobile number and try again.',
+  'synqt_failure_id_number': 'Check the ID number and try again.',
+  'synqt_failure_ifsc': 'Check the IFSC code and try again.',
+  'synqt_failure_declined': 'The payment was declined, so nothing was paid.',
+  'synqt_failure_not_verified':
+      'The payment could not be verified. Please try again, or choose another payment method.',
+  'synqt_failure_account_ineligible':
+      'This account cannot be used for this payment. Use another account or payment method.',
+  'synqt_failure_feature_unavailable':
+      'This payment option is turned off or not available on your device. Check your banking app\'s settings, or choose another payment method.',
+  'synqt_failure_account_limit':
+      'This payment is over your account\'s limit. Choose another payment method, or check your limits with your bank.',
+  'synqt_failure_not_registered':
+      'You are not registered for this payment method. Register with your bank, or choose another payment method.',
+  'synqt_failure_voucher':
+      'This voucher cannot be used for this payment. Check the voucher PIN, or use another voucher.',
+};
