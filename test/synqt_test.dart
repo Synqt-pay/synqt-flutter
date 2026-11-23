@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:synqt/src/method_forms.dart';
+import 'package:synqt/src/payin.dart' show SheetPayin;
 import 'package:synqt/src/payment_app.dart';
 import 'package:synqt/src/payment_sheet_model.dart';
 import 'package:synqt/src/method_form.dart';
@@ -382,6 +383,54 @@ void main() {
         started.status(),
         throwsA(isA<SynqtApiException>().having((error) => error.httpCode, 'httpCode', 401)),
       );
+    });
+
+    group('the sheet\'s bank list', () {
+      // Answers each request with the next status (the last repeats) and counts the requests.
+      Future<(List<PaymentOperator>?, int)> load(List<int> statuses) async {
+        var requests = 0;
+        final client = MockClient((request) async {
+          final status = statuses[requests < statuses.length ? requests : statuses.length - 1];
+          requests++;
+          return http.Response(
+            status == 200
+                ? '{"data":[{"paymentMethodCode":"OFFLINE","paymentOperators":[{"code":"ABSA","name":"Absa"}]}]}'
+                : '{"errors":[]}',
+            status,
+          );
+        });
+        final form = methodForms.firstWhere((form) => form.code == 'OFFLINE');
+        final loaded = await payin('order-1', client).sheetOperators(form, retryAfter: Duration.zero);
+        return (loaded, requests);
+      }
+
+      test('server errors are retried twice, then the list loads', () async {
+        final (loaded, requests) = await load([503, 500, 200]);
+        expect(loaded?.map((paymentOperator) => paymentOperator.code), ['ABSA']);
+        expect(requests, 3);
+      });
+
+      test('three failures mean the list could not be loaded', () async {
+        final (loaded, requests) = await load([503]);
+        expect(loaded, isNull);
+        expect(requests, 3);
+      });
+
+      test('a refusal is not retried', () async {
+        final (loaded, requests) = await load([403]);
+        expect(loaded, isNull);
+        expect(requests, 1);
+      });
+
+      test('a connection failure is retried', () async {
+        var requests = 0;
+        final client = MockClient(
+          (_) async => ++requests < 3 ? throw http.ClientException('offline') : http.Response('{"data":[]}', 200),
+        );
+        final form = methodForms.firstWhere((form) => form.code == 'OFFLINE');
+        expect(await payin('order-1', client).sheetOperators(form, retryAfter: Duration.zero), isEmpty);
+        expect(requests, 3);
+      });
     });
   });
 }

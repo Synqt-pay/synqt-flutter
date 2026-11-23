@@ -25,28 +25,30 @@ final class PaymentSummary {
 
 /// The payment sheet's state and behaviour, apart from the widgets: Pay checks the values, builds the typed method and
 /// hands it to [submit]; a processing state covers the form meanwhile, and every error comes back next to its field.
-/// The presenter supplies how to open links, copy text, announce errors and close the sheet.
+/// The presenter supplies how to open links, copy text, announce errors and close the sheet. [operators] is null when
+/// SYNQT's list of banks and providers could not be loaded.
 class PaymentSheetModel extends ChangeNotifier {
   PaymentSheetModel({
     required this.form,
     required Map<String, String> prefill,
-    required List<PaymentOperator> operators,
+    required List<PaymentOperator>? operators,
     required this.summary,
     this.section,
     required Future<CreatePayinResult> Function(PaymentMethod) submit,
     Future<CreatePayinResult> Function(Map<String, Object?>)? submitJson,
-  }) : _operators = operators,
+  }) : _operators = operators ?? const [],
+       banksFailed = operators == null,
        _submit = submit,
        _submitJson = submitJson,
        methodName = results.methodName(form.code) ?? text(form.name),
        inputs = form.fields
-           .where((field) => !(field.kind == FieldKind.paymentOperator && operators.isEmpty && !field.required))
+           .where((field) => !(field.kind == FieldKind.paymentOperator && (operators ?? []).isEmpty && !field.required))
            .toList() {
     // A dropdown prefill that is none of its options is cleared, but shown with the field's error below.
     final unlisted = <String>{};
     for (final field in inputs) {
       final value = prefill[field.path] ?? '';
-      final choices = _options(field, operators);
+      final choices = _options(field, operators ?? const []);
       final listed = choices == null || choices.any((option) => option.value == value);
       if (!listed && !value.isBlank) unlisted.add(field.path);
       values[field.path] = listed ? value : '';
@@ -74,7 +76,11 @@ class PaymentSheetModel extends ChangeNotifier {
   final MethodForm form;
   final PaymentSummary summary;
   final String methodName;
-  final List<PaymentOperator> _operators;
+  List<PaymentOperator> _operators;
+
+  /// SYNQT's list of banks and providers could not be loaded, so a mandatory bank or provider field can't be filled in.
+  bool banksFailed;
+  bool loadingBanks = false;
   final Future<CreatePayinResult> Function(PaymentMethod) _submit;
 
   /// An add-on method's own fields, which it draws, checks and builds itself.
@@ -127,6 +133,9 @@ class PaymentSheetModel extends ChangeNotifier {
   /// Reads text out to screen reader users without moving their focus.
   void Function(String) announce = (_) {};
 
+  /// Loads the banks and providers again, as the presenter first did; null if they still could not be loaded.
+  Future<List<PaymentOperator>?> Function() reloadOperators = () async => null;
+
   /// Everything mandatory came from the app, so pay straight away; the processing view covers the form, and any
   /// refusal brings the form back with the error.
   void start() {
@@ -164,6 +173,32 @@ class PaymentSheetModel extends ChangeNotifier {
         _ => null,
       };
 
+  /// A mandatory bank or provider field shown as "couldn't load" with Try again, as the payer can't fill it in. An
+  /// optional one stays as it was without a list: a bank field is hidden, a provider field takes a typed code.
+  bool banksMissing(FormInput field) =>
+      banksFailed && field.required && (field.kind == FieldKind.paymentOperator || field.kind == FieldKind.provider);
+
+  /// Try again: loads the banks and providers once more, with the same retries; the fields come back on success.
+  Future<void> retryBanks() async {
+    if (!banksFailed || loadingBanks) return;
+    loadingBanks = true;
+    _changed();
+    final loaded = await reloadOperators();
+    loadingBanks = false;
+    if (loaded == null) {
+      announce(text('synqt_sheet_banks_failed'));
+    } else {
+      _operators = loaded;
+      banksFailed = false;
+      for (final field in inputs) {
+        if (field.kind != FieldKind.paymentOperator && field.kind != FieldKind.provider) continue;
+        marks.remove(field.path);
+        _invalid.remove(field.path);
+      }
+    }
+    _changed();
+  }
+
   /// The hint under a field. A bank or provider the payer types (SYNQT listed none) says what to type.
   String hint(FormInput field) {
     if (options(field) == null && field.kind == FieldKind.paymentOperator) return text('synqt_sheet_hint_bank_code');
@@ -180,9 +215,8 @@ class PaymentSheetModel extends ChangeNotifier {
   /// Everything filled in by the app: the whole details section goes, leaving the summary and Pay.
   bool get allFilledIn => inputs.isNotEmpty && !inputs.any((field) => visible(field.path));
 
-  String get intro => inputs.isEmpty && section == null
-      ? text('synqt_sheet_intro_nothing_to_enter')
-      : text('synqt_sheet_intro', [methodName]);
+  /// Only a form with nothing to enter gets an intro line.
+  String? get intro => inputs.isEmpty && section == null ? text('synqt_sheet_intro_nothing_to_enter') : null;
 
   /// The payer typed in a field. As the Android sheet's length filter, longer input is cut off.
   void setValue(FormInput field, String value) {

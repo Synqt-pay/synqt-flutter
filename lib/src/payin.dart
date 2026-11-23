@@ -160,6 +160,7 @@ final class Payin {
       submit: (method) => create(method, customerIp: customerIp),
       submitJson: (json) => _create(json, form.code, customerIp),
     )..onPaymentStarted = onPaymentStarted ?? () {};
+    model.reloadOperators = () => sheetOperators(form);
     return showPaymentSheet(context, model, onPresented: onPresented);
   }
 
@@ -199,25 +200,42 @@ final class Payin {
     mode: LaunchMode.externalApplication,
   );
 
-  /// Banks and providers for [form]'s bank or provider field, and the merchant's name for the summary. Both are
-  /// niceties: without the bank list the sheet hides an optional bank field or asks for the code, and without the
-  /// merchant name the summary leaves that row out.
-  Future<(List<PaymentOperator>, String?)> _sheetContext(MethodForm form) async {
+  /// Banks and providers for [form]'s bank or provider field (null if they could not be loaded), and the merchant's
+  /// name for the summary, which is a nicety: without it the summary leaves that row out.
+  Future<(List<PaymentOperator>?, String?)> _sheetContext(MethodForm form) async {
     final needsOperators = form.fields.any(
       (field) => field.kind == FieldKind.paymentOperator || field.kind == FieldKind.provider,
     );
-    final operators = needsOperators
-        ? _orNull(
-            () async =>
-                (await availablePaymentOptions()).where((option) => option.code == form.code).firstOrNull?.operators,
-          )
-        : Future<List<PaymentOperator>?>.value();
+    final operators = needsOperators ? sheetOperators(form) : Future.value(const <PaymentOperator>[]);
     final merchant = _orNull(
       () async => jsonText(
         jsonMap(jsonMap(jsonDecode(await synqtCall(_synqt, 'GET', '/merchant-info', _token)))?['channelInfo'])?['name'],
       ),
     );
-    return ((await operators) ?? const <PaymentOperator>[], await merchant);
+    return (await operators, await merchant);
+  }
+}
+
+/// For the payment sheet only; not exported.
+extension SheetPayin on Payin {
+  /// SYNQT's banks and providers for [form], empty if it lists none, or null if they could not be loaded. A failed
+  /// connection or a SYNQT server error is tried twice more, [retryAfter] apart; a refusal such as 403 is not.
+  Future<List<PaymentOperator>?> sheetOperators(
+    MethodForm form, {
+    Duration retryAfter = const Duration(seconds: 2),
+  }) async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await Future<void>.delayed(retryAfter);
+      try {
+        return (await availablePaymentOptions()).where((option) => option.code == form.code).firstOrNull?.operators ??
+            const [];
+      } on SynqtApiException catch (error) {
+        if (error.httpCode < 500) return null;
+      } on Exception {
+        // unreachable or timed out: try again
+      }
+    }
+    return null;
   }
 }
 

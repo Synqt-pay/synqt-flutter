@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:synqt/addon.dart';
 import 'package:synqt/src/method_form.dart';
+import 'package:synqt/src/method_forms.dart';
 import 'package:synqt/src/payment_sheet_model.dart';
 import 'package:synqt/src/results.dart';
 import 'package:synqt/synqt.dart';
@@ -71,6 +72,21 @@ void main() {
     expect(result, isA<RedirectResult>().having((redirect) => redirect.url, 'url', 'https://acs.example/3ds'));
   });
 
+  test('a form with nothing to enter says so; one with fields has no intro', () {
+    PaymentSheetModel sheet(MethodForm form) => PaymentSheetModel(
+      form: form,
+      prefill: const {},
+      operators: const [],
+      summary: const PaymentSummary(amount: 'R1.00', merchant: null, method: 'Test', reference: 'o-1'),
+      submit: (_) => throw StateError('not sent'),
+    );
+    expect(
+      sheet(MethodForm('TEST_EMPTY', '', const [], build: (_) => throw StateError('nothing to build'))).intro,
+      'No details needed. Tap Pay to continue.',
+    );
+    expect(sheet(methodForms.firstWhere((form) => form.code == 'CAPITEC_PAY')).intro, isNull);
+  });
+
   group('sheet with an add-on section', () {
     late _Section section;
     late List<Map<String, Object?>> sent;
@@ -101,7 +117,7 @@ void main() {
       model.start();
       expect(model.processing, isFalse);
       expect(model.methodName, 'Test add-on');
-      expect(model.intro, 'Enter your details to pay with Test add-on.');
+      expect(model.intro, isNull);
     });
 
     test('a failed check sends nothing and is read out', () {
