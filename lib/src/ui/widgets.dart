@@ -60,7 +60,7 @@ class SynqtLogo extends StatelessWidget {
   }
 }
 
-/// A panel with a title in the mobile subtitle style (20 Regular).
+/// A panel with a title in the sheet's heading style (20 SemiBold).
 class SynqtCard extends StatelessWidget {
   const SynqtCard({super.key, required this.title, required this.child});
 
@@ -83,7 +83,7 @@ class SynqtCard extends StatelessWidget {
         children: [
           Semantics(
             header: true,
-            child: Text(title, style: synqtFont(20, color: colors.text)),
+            child: Text(title, style: synqtFont(20, weight: FontWeight.w600, color: colors.text)),
           ),
           const SizedBox(height: 8),
           child,

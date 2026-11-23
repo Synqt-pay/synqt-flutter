@@ -285,7 +285,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
         padding: const EdgeInsets.only(top: 24, bottom: 8),
         child: Semantics(
           header: true,
-          child: Text(text('synqt_sheet_your_details'), style: synqtFont(20, color: colors.text)),
+          child: Text(text('synqt_sheet_your_details'), style: synqtFont(20, weight: FontWeight.w600, color: colors.text)),
         ),
       ),
       Padding(
@@ -448,7 +448,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
               Text(
                 text('synqt_sheet_processing'),
                 textAlign: TextAlign.center,
-                style: synqtFont(20, color: colors.text),
+                style: synqtFont(20, weight: FontWeight.w600, color: colors.text),
               ),
               const SizedBox(height: 8),
               Text(
@@ -700,7 +700,7 @@ class _NextStepView extends StatelessWidget {
             header: true,
             child: Text(
               transfer != null ? text('synqt_next_transfer_title') : text('synqt_next_title', [name]),
-              style: synqtFont(20, color: colors.text),
+              style: synqtFont(20, weight: FontWeight.w600, color: colors.text),
             ),
           ),
         ),
