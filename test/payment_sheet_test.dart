@@ -41,7 +41,8 @@ Future<Future<CreatePayinResult?>> _open(
   WidgetTester tester,
   String code, {
   Map<String, String> prefill = const {},
-  List<PaymentOperator> operators = const [],
+  List<PaymentOperator>? operators = const [],
+  Future<List<PaymentOperator>?> Function()? reloadOperators,
   Size size = const Size(1179, 2556),
   required Future<CreatePayinResult> Function(PaymentMethod) submit,
 }) async {
@@ -71,6 +72,7 @@ Future<Future<CreatePayinResult?>> _open(
                     ),
                     submit: submit,
                   );
+                  if (reloadOperators != null) model.reloadOperators = reloadOperators;
                   result = showPaymentSheet(context, model);
                 },
                 child: const Text('Checkout'),
@@ -184,6 +186,67 @@ void main() {
       expect(await result, same(accepted));
     });
   }
+
+  testWidgets('at accessibility text sizes the header and Pay bar stop growing and the secure line stays', (
+    tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _open(tester, 'CAPITEC_PAY', submit: (_) => throw StateError('not sent'));
+    expect(find.text('Secure checkout'), findsOneWidget);
+    // In the order summary card, above the details heading, not in the Pay bar.
+    final secureTop = tester.getTopLeft(find.text('Secure checkout')).dy;
+    expect(secureTop, lessThan(tester.getTopLeft(find.text('Your details')).dy));
+    expect(MediaQuery.textScalerOf(tester.element(find.text('Pay R1,250.00'))).scale(1), 1.6);
+    expect(MediaQuery.textScalerOf(tester.element(find.bySemanticsLabel('Close'))).scale(1), 1.3);
+    expect(MediaQuery.textScalerOf(tester.element(find.text('Your details'))).scale(1), 2);
+    await _shot(tester, 'large-text');
+  });
+
+  testWidgets('a tablet card fits a short form instead of filling the screen', (tester) async {
+    await _open(tester, 'ZAPPER_QR', size: const Size(3072, 4098), submit: (_) => throw StateError('not sent'));
+    final card = find.descendant(of: find.byType(Dialog), matching: find.byType(Material)).first;
+    expect(tester.state<ScrollableState>(find.byType(Scrollable).first).position.maxScrollExtent, 0);
+    expect(tester.getSize(card).height, lessThan(1366 - 48)); // 1366 high, less the dialog's insets
+  });
+
+  testWidgets('name fields offer the contact card to autofill', (tester) async {
+    await _open(tester, 'ZAPPER_QR', submit: (_) => throw StateError('not sent'));
+    final hints = tester.widgetList<TextField>(find.byType(TextField)).expand((field) => field.autofillHints ?? []);
+    expect(hints, containsAll([AutofillHints.givenName, AutofillHints.familyName, AutofillHints.email]));
+  });
+
+  testWidgets('a mandatory bank whose list did not load offers Try again, and the dropdown comes back', (tester) async {
+    final reload = Completer<List<PaymentOperator>?>();
+    await _open(
+      tester,
+      'OFFLINE',
+      operators: null,
+      reloadOperators: () => reload.future,
+      submit: (_) => throw StateError('not sent'),
+    );
+    expect(find.text('The list of banks could not be loaded. Check the connection and try again.'), findsOneWidget);
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    await _shot(tester, 'banks-failed');
+
+    // Pay finds the bank empty and scrolls to the block, which keeps the field's key.
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -2000));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pay R1,250.00'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('paymentOperatorCode')).hitTestable(), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Try again'));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.bySemanticsLabel('Try again'), findsOneWidget);
+    reload.complete(const [PaymentOperator(code: 'ZA_TEST', name: 'Test Bank')]);
+    await tester.pumpAndSettle();
+    expect(find.text('The list of banks could not be loaded. Check the connection and try again.'), findsNothing);
+    final bank = tester.widget<SynqtDropdown>(find.byKey(const ValueKey('paymentOperatorCode')));
+    expect(bank.options.map((option) => option.label), contains('Test Bank'));
+    expect(bank.error, isNull);
+  });
 
   testWidgets('everything prefilled pays straight away', (tester) async {
     var sent = 0;

@@ -126,6 +126,9 @@ class _PaymentSheet extends StatefulWidget {
 
 class _PaymentSheetState extends State<_PaymentSheet> {
   final _bannerKey = GlobalKey();
+
+  /// Bank and provider fields shown as "couldn't load", scrolled to when Pay finds them empty.
+  final _banksFailedKeys = <String, GlobalKey>{};
   final _scroll = ScrollController();
   NextStep? _shownNext;
   int _bannerRequest = 0;
@@ -161,10 +164,12 @@ class _PaymentSheetState extends State<_PaymentSheet> {
       if (_scroll.hasClients) _scroll.jumpTo(0);
     }
     final request = model.focusRequest;
-    if (request != null && request.path == 'banner' && request.count != _bannerRequest) {
+    // Text fields scroll to themselves; the banner and a bank list that didn't load are scrolled to here.
+    final key = request?.path == 'banner' ? _bannerKey : _banksFailedKeys[request?.path];
+    if (request != null && key != null && request.count != _bannerRequest) {
       _bannerRequest = request.count;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final target = _bannerKey.currentContext;
+        final target = key.currentContext;
         if (target != null) Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 250));
       });
     }
@@ -208,22 +213,44 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _header(colors),
+                      // The header and Pay bar stay on screen, so they grow less with the text size than the form between.
+                      MediaQuery.withClampedTextScaling(maxScaleFactor: 1.3, child: _header(colors)),
                       Divider(height: 1, color: colors.border),
                       Flexible(
-                        child: SingleChildScrollView(
-                          controller: _scroll,
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: model.next != null
-                                ? [_NextStepView(model: model, next: model.next!)]
-                                : _formContent(colors),
-                          ),
+                        child: Stack(
+                          children: [
+                            SingleChildScrollView(
+                              controller: _scroll,
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: model.next != null
+                                    ? [_NextStepView(model: model, next: model.next!)]
+                                    : _formContent(colors),
+                              ),
+                            ),
+                            // Just above the bar, however tall the bar has grown with its buttons and the text size.
+                            if (model.toast != null)
+                              Positioned(
+                                left: 16,
+                                right: 16,
+                                bottom: 16,
+                                child: Center(
+                                  child: Semantics(
+                                    liveRegion: true,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      decoration: ShapeDecoration(color: colors.text, shape: const StadiumBorder()),
+                                      child: Text(model.toast!, style: synqtFont(16, color: colors.surface)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                       Divider(height: 1, color: colors.border),
-                      _bottomBar(colors),
+                      MediaQuery.withClampedTextScaling(maxScaleFactor: 1.6, child: _bottomBar(colors)),
                       // Keeps the Pay button above the keyboard, or else above the home indicator or navigation bar
                       // (padding is 0 while the keyboard covers it). useSafeArea leaves the bottom to the sheet.
                       SizedBox(height: MediaQuery.viewInsetsOf(context).bottom + MediaQuery.paddingOf(context).bottom),
@@ -232,22 +259,6 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                 ),
                 if (model.processing) Positioned.fill(child: _processing(colors)),
                 if (_covered) Positioned.fill(child: ColoredBox(color: colors.surface)),
-                if (model.toast != null)
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 96 + MediaQuery.viewInsetsOf(context).bottom,
-                    child: Center(
-                      child: Semantics(
-                        liveRegion: true,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: ShapeDecoration(color: colors.text, shape: const StadiumBorder()),
-                          child: Text(model.toast!, style: synqtFont(16, color: colors.surface)),
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -279,19 +290,20 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   );
 
   List<Widget> _formContent(SynqtColors colors) => [
-    _SummaryCard(summary: model.summary),
+    _SummaryCard(summary: model.summary, secure: true),
     if (!model.allFilledIn) ...[
       Padding(
-        padding: const EdgeInsets.only(top: 24, bottom: 8),
+        padding: EdgeInsets.only(top: 24, bottom: model.intro == null ? 16 : 8),
         child: Semantics(
           header: true,
-          child: Text(text('synqt_sheet_your_details'), style: synqtFont(20, color: colors.text)),
+          child: Text(text('synqt_sheet_your_details'), style: synqtFont(20, weight: FontWeight.w600, color: colors.text)),
         ),
       ),
-      Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Text(model.intro, style: synqtFont(16, color: colors.textMuted)),
-      ),
+      if (model.intro case final intro?)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Text(intro, style: synqtFont(16, color: colors.textMuted)),
+        ),
     ],
     for (final row in _rows()) _row(row, colors),
     ?model.section?.build(context),
@@ -304,7 +316,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
         when model.inputs.any((field) => field.section == section && model.visible(field.path)) =>
       _heading(text(section), colors),
     (null, final int questionIndex, null) when model.questionVisible(questionIndex) => _question(questionIndex, colors),
-    (null, null, final FormInput field) when model.visible(field.path) => _field(field),
+    (null, null, final FormInput field) when model.visible(field.path) => _field(field, colors),
     _ => const SizedBox.shrink(),
   };
 
@@ -359,12 +371,14 @@ class _PaymentSheetState extends State<_PaymentSheet> {
           ),
         ),
         for (final field in model.inputs)
-          if (paths.contains(field.path) && model.visible(field.path)) _field(field),
+          if (paths.contains(field.path) && model.visible(field.path)) _field(field, colors),
       ],
     );
   }
 
-  Widget _field(FormInput field) {
+  Widget _field(FormInput field, SynqtColors colors) {
+    if (model.banksMissing(field)) return _banksFailed(field, colors);
+    _banksFailedKeys.remove(field.path);
     final options = model.options(field);
     final value = model.values[field.path] ?? '';
     if (options != null) {
@@ -395,8 +409,48 @@ class _PaymentSheetState extends State<_PaymentSheet> {
       },
       focusRequest: request != null && request.path == field.path ? request.count : 0,
       onFocusChange: (focused) => model.focus(field.path, focused),
+      autofillHints: _autofillHints[field.path],
     );
   }
+
+  /// In place of a bank or provider field whose list didn't load: the label, why, and Try again.
+  Widget _banksFailed(FormInput field, SynqtColors colors) {
+    return Padding(
+      key: _banksFailedKeys.putIfAbsent(field.path, GlobalKey.new),
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        key: ValueKey(field.path),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            text(field.label),
+            style: synqtFont(16, weight: FontWeight.w500, color: colors.text),
+          ),
+          const SizedBox(height: 8),
+          SynqtErrorBanner(text('synqt_sheet_banks_failed')),
+          const SizedBox(height: 8),
+          SynqtButton(
+            label: text('synqt_sheet_try_again'),
+            onPressed: model.retryBanks,
+            kind: SynqtButtonKind.outline,
+            loading: model.loadingBanks,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// What the platform may offer from the payer's contact card for a field; email and phone get theirs from the keyboard.
+  static const _autofillHints = {
+    'customerName.titleBefore': [AutofillHints.namePrefix],
+    'customerName.firstName': [AutofillHints.givenName],
+    'customerName.middleName': [AutofillHints.middleName],
+    'customerName.lastName': [AutofillHints.familyName],
+    'customerName.titleAfter': [AutofillHints.nameSuffix],
+    'account.accountName': [AutofillHints.name],
+    'paymentLocation.postalCode': [AutofillHints.postalCode],
+    'paymentLocation.city': [AutofillHints.addressCity],
+  };
 
   Widget _bottomBar(SynqtColors colors) {
     final next = model.next;
@@ -417,15 +471,6 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             ),
           ] else ...[
             SynqtButton(label: text('synqt_sheet_pay', [model.summary.amount]), onPressed: model.pay),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SynqtIconView(SynqtIcon.lock, size: 16, color: colors.textMuted),
-                const SizedBox(width: 8),
-                Text(text('synqt_sheet_secure_checkout'), style: synqtFont(13, color: colors.textMuted)),
-              ],
-            ),
           ],
         ],
       ),
@@ -448,7 +493,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
               Text(
                 text('synqt_sheet_processing'),
                 textAlign: TextAlign.center,
-                style: synqtFont(20, color: colors.text),
+                style: synqtFont(20, weight: FontWeight.w600, color: colors.text),
               ),
               const SizedBox(height: 8),
               Text(
@@ -537,10 +582,13 @@ class _ChoiceTiles extends StatelessWidget {
 
 /// The checkout's order summary: amount due in large type, then who, how and which order.
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.summary, this.showReference = true});
+  const _SummaryCard({required this.summary, this.showReference = true, this.secure = false});
 
   final PaymentSummary summary;
   final bool showReference;
+
+  /// The form's card ends with the secure checkout line; the next step's doesn't.
+  final bool secure;
 
   @override
   Widget build(BuildContext context) {
@@ -565,6 +613,22 @@ class _SummaryCard extends StatelessWidget {
           if (summary.merchant != null) _DetailRow(label: text('synqt_sheet_paying'), value: summary.merchant!),
           _DetailRow(label: text('synqt_sheet_payment_method'), value: summary.method),
           if (showReference) _DetailRow(label: text('synqt_sheet_reference'), value: summary.reference),
+          if (secure)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: MergeSemantics(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SynqtIconView(SynqtIcon.lock, size: 16, color: colors.textMuted),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(text('synqt_sheet_secure_checkout'), textAlign: TextAlign.center, style: synqtFont(13, color: colors.textMuted)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -700,7 +764,7 @@ class _NextStepView extends StatelessWidget {
             header: true,
             child: Text(
               transfer != null ? text('synqt_next_transfer_title') : text('synqt_next_title', [name]),
-              style: synqtFont(20, color: colors.text),
+              style: synqtFont(20, weight: FontWeight.w600, color: colors.text),
             ),
           ),
         ),

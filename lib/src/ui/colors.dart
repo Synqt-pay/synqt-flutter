@@ -11,6 +11,7 @@ final class SynqtColors {
     required this.surfacePanel,
     required this.text,
     required this.textMuted,
+    required this.placeholder,
     required this.onAccent,
     required this.action,
     required this.onAction,
@@ -30,6 +31,9 @@ final class SynqtColors {
   final Color surfacePanel;
   final Color text;
   final Color textMuted;
+
+  /// Example text in an empty field, lighter than typed text so it can't pass for it: 4.73:1 on the light surface, 4.96:1 on the dark one. Proposed 23 Nov 2026, awaiting the Innovation Manager.
+  final Color placeholder;
   final Color onAccent;
   final Color action;
   final Color onAction;
@@ -62,6 +66,7 @@ final class SynqtColors {
     surfacePanel: Color(0xFFF0F0F0),
     text: Color(0xFF1A1C29),
     textMuted: Color(0xFF4E5670),
+    placeholder: Color(0xFF6B7389),
     onAccent: Color(0xFF1A1C29),
     action: Color(0xFFB505BF),
     onAction: Color(0xFFFFFFFF),
@@ -82,6 +87,7 @@ final class SynqtColors {
     surfacePanel: Color(0xFF212536),
     text: Color(0xFFFFFFFF),
     textMuted: Color(0xFFA7AFC5),
+    placeholder: Color(0xFF838B9F),
     onAccent: Color(0xFF1A1C29),
     action: Color(0xFFF318FF),
     onAction: Color(0xFF1A1C29),

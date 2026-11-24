@@ -60,7 +60,7 @@ class SynqtLogo extends StatelessWidget {
   }
 }
 
-/// A panel with a title in the mobile subtitle style (20 Regular).
+/// A panel with a title in the sheet's heading style (20 SemiBold).
 class SynqtCard extends StatelessWidget {
   const SynqtCard({super.key, required this.title, required this.child});
 
@@ -83,7 +83,7 @@ class SynqtCard extends StatelessWidget {
         children: [
           Semantics(
             header: true,
-            child: Text(title, style: synqtFont(20, color: colors.text)),
+            child: Text(title, style: synqtFont(20, weight: FontWeight.w600, color: colors.text)),
           ),
           const SizedBox(height: 8),
           child,
@@ -230,7 +230,7 @@ class _SynqtTextFieldState extends State<SynqtTextField> {
                 filled: true,
                 fillColor: colors.surface,
                 hintText: widget.placeholder.isEmpty ? null : widget.placeholder,
-                hintStyle: synqtFont(16, color: colors.textMuted),
+                hintStyle: synqtFont(16, color: colors.placeholder),
                 constraints: const BoxConstraints(minHeight: 52),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
                 enabledBorder: edge(widget.error != null ? colors.danger : colors.borderControl, 1),
@@ -320,13 +320,21 @@ class SynqtDropdown extends StatelessWidget {
 /// [primary] is the action colour (one per screen), [accent] is brand magenta for dark sections, [outline] is secondary.
 enum SynqtButtonKind { primary, accent, outline }
 
-/// A 48 high pill button in the Synqt style.
+/// A 48 high pill button in the Synqt style. While [loading] it is disabled and shows a progress indicator, but screen
+/// readers still read its label.
 class SynqtButton extends StatelessWidget {
-  const SynqtButton({super.key, required this.label, required this.onPressed, this.kind = SynqtButtonKind.primary});
+  const SynqtButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.kind = SynqtButtonKind.primary,
+    this.loading = false,
+  });
 
   final String label;
   final VoidCallback? onPressed;
   final SynqtButtonKind kind;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -342,22 +350,34 @@ class SynqtButton extends StatelessWidget {
     );
     return Semantics(
       button: true,
+      enabled: loading ? false : null,
       child: Material(
         color: fill,
         shape: shape,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: onPressed,
+          onTap: loading ? null : onPressed,
           overlayColor: WidgetStatePropertyAll(colors.pressedOverlay),
           child: Container(
             constraints: const BoxConstraints(minHeight: 48),
             width: double.infinity,
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: synqtFont(16, weight: FontWeight.w500, color: ink, tabular: true),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Opacity(
+                  opacity: loading ? 0 : 1,
+                  alwaysIncludeSemantics: true,
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: synqtFont(16, weight: FontWeight.w500, color: ink, tabular: true),
+                  ),
+                ),
+                if (loading)
+                  SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, color: ink)),
+              ],
             ),
           ),
         ),
