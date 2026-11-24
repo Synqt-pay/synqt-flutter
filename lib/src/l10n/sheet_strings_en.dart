@@ -1,7 +1,7 @@
 // Payer-facing text written for the payment sheet. Field labels, hints and method names are in
 // form_strings_en.dart. Both are generated: don't edit them by hand. Translations go in
 // sheet_strings_<language>.dart with the same keys, keeping the placeholders, and are listed in strings.dart.
-// Keys and text match the iOS and Android SDKs. Draft wording awaiting sign-off is listed in the README.
+// Keys and text match the iOS and Android SDKs.
 // ignore_for_file: lines_longer_than_80_chars
 
 const sheetStringsEn = <String, String>{
@@ -15,7 +15,7 @@ const sheetStringsEn = <String, String>{
   'synqt_sheet_hint_bank_code': 'The code from your bank or provider',
   'synqt_sheet_hint_provider_code': 'The code from your provider',
 
-  // Shown in place of a mandatory bank or provider field when SYNQT's list didn't load after two automatic retries. Draft, 23 Nov 2026, awaiting the Innovation Manager.
+  // Shown in place of a mandatory bank or provider field when SYNQT's list didn't load after two automatic retries.
   'synqt_sheet_banks_failed': 'The list of banks could not be loaded. Check the connection and try again.',
 
   // The button that loads the list of banks again.

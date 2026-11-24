@@ -32,7 +32,7 @@ final class SynqtColors {
   final Color text;
   final Color textMuted;
 
-  /// Example text in an empty field, lighter than typed text so it can't pass for it: 4.73:1 on the light surface, 4.96:1 on the dark one. Proposed 23 Nov 2026, awaiting the Innovation Manager.
+  /// Example text in an empty field, lighter than typed text so it can't pass for it: 4.73:1 on the light surface, 4.96:1 on the dark one.
   final Color placeholder;
   final Color onAccent;
   final Color action;
