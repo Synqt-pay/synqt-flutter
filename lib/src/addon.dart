@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'method_forms.dart';
-import 'payin.dart';
+import 'payin_checkout.dart';
 import 'results.dart';
 
 /// A payment method an add-on adds to the payment sheet, registered with [addSheetMethod]. The sheet keeps its header,
@@ -18,9 +18,9 @@ abstract interface class SheetMethod {
   /// fields.
   bool get secure;
 
-  /// The method's fields, for one sheet. [prefill] is the app's, as given to `Payin.presentPaymentSheet`. The section
+  /// The method's fields, for one sheet. [prefill] is the app's, as given to `PayinCheckout.presentPaymentSheet`. The section
   /// lives as long as the sheet, through light or dark, font size, language and rotation changes.
-  MethodSection section(Payin payin, Map<String, String> prefill);
+  MethodSection section(PayinCheckout checkout, Map<String, String> prefill);
 }
 
 /// One sheet's fields for a [SheetMethod].

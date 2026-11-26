@@ -1,11 +1,16 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:synqt/src/payin_models.dart';
 import 'package:synqt/src/payment_methods.dart';
 import 'package:synqt/src/payment_sheet_model.dart';
 import 'package:synqt/src/results.dart';
 
-PaymentMethodResponse decode(String text) => parseMethodResponse(jsonDecode(text) as Map<String, Object?>);
+PaymentMethodResponsePayin decode(String text) =>
+    PaymentMethodResponsePayin.fromJson(jsonDecode(text) as Map<String, Object?>);
+
+PayinAcceptedMethodResponse accepted(String text) =>
+    PayinAcceptedResponse.fromJson(jsonDecode(text) as Map<String, Object?>) as PayinAcceptedMethodResponse;
 
 void main() {
   test('request writes code and only set fields', () {
@@ -65,8 +70,8 @@ void main() {
   test('response accounts share one type', () {
     final absa =
         decode('{"paymentMethodCode":"ABSA_PAY","accountCustomer":{"accountName":"A","accountNumber":"1"}}')
-            as AbsaPayResponse;
-    final pse = decode('{"paymentMethodCode":"PSE","accountCustomer":{"accountName":"B"}}') as PseResponse;
+            as AbsaPayMethodResponse;
+    final pse = decode('{"paymentMethodCode":"PSE","accountCustomer":{"accountName":"B"}}') as PseMethodResponse;
     expect(absa.accountCustomer?.accountNumber, '1');
     expect(pse.accountCustomer?.accountName, 'B');
     expect(pse.accountCustomer?.accountNumber, isNull);
@@ -85,7 +90,7 @@ void main() {
         decode(
               '{"paymentMethodCode":"CAPITEC_PAY","idPayin":"o-1","reference":"REF1","money":{"amount":100.10,"currencyCode":"ZAR"}}',
             )
-            as CapitecPayResponse;
+            as CapitecPayMethodResponse;
     expect(response.reference, 'REF1');
     expect(response.money?.amount, 100.1);
     expect(response.phoneNumber, isNull);
@@ -114,14 +119,12 @@ void main() {
   });
 
   test('Zapper instructions carry the next step', () {
-    final result =
-        parseCreatePayin('''
+    final result = accepted('''
       {"paymentMethodResponse":{"paymentMethodCode":"ZAPPER_QR","qrCode":"https://example.com/qr.png",
          "qrRawData":"https://example.com/pay?qr=1","zapperQrDeepLink":"https://example.com/pay?qr=1","reference":"",
-         "expireAt":"2026-10-27T15:15:49.725253752Z"}}''')
-            as InstructionsResult;
-    expect(result.paymentMethod, isA<ZapperQrResponse>());
-    final next = result.nextStep;
+         "expireAt":"2026-10-27T15:15:49.725253752Z"}}''');
+    expect(result.paymentMethodResponse, isA<ZapperQrMethodResponse>());
+    final next = result.nextStep()!;
     expect(next.appLink, 'https://example.com/pay?qr=1');
     expect(next.qrCodeImageUrl, 'https://example.com/qr.png');
     expect(next.qrCodeData, 'https://example.com/pay?qr=1');
@@ -131,23 +134,18 @@ void main() {
   });
 
   test('offline instructions carry the account to pay into', () {
-    final next =
-        (parseCreatePayin('''
+    final next = accepted('''
       {"paymentMethodResponse":{"paymentMethodCode":"OFFLINE","reference":"REF123",
          "account":{"accountName":"Test Payee","accountNumber":"0000000000","bankName":"Test Bank","bankCode":"000000"},
-         "accountCustomer":{"accountName":"Test Payer"}}}''')
-                as InstructionsResult)
-            .nextStep;
+         "accountCustomer":{"accountName":"Test Payer"}}}''').nextStep()!;
     expect(next.payInto?.accountName, 'Test Payee');
     expect(next.payInto?.bankCode, '000000');
     expect(next.reference, 'REF123');
     // Other methods' `account` is not shown as somewhere to pay.
-    final other =
-        parseCreatePayin(
-              '{"paymentMethodResponse":{"paymentMethodCode":"PAYSHAP","account":{"accountNumber":"0000000000"}}}',
-            )
-            as InstructionsResult;
-    expect(other.nextStep.payInto, isNull);
+    final other = accepted(
+      '{"paymentMethodResponse":{"paymentMethodCode":"PAYSHAP","account":{"accountNumber":"0000000000"}}}',
+    );
+    expect(other.nextStep()?.payInto, isNull);
   });
 
   test('app links fall back to the app\'s own scheme', () {
@@ -167,29 +165,41 @@ void main() {
 
   test('failure reasons have a payer message', () {
     expect(
-      const FailureReason(code: 'PAYMENT_PROCESS_ERROR').payerMessage,
+      const FailureReasons(failureReasonCode: 'PAYMENT_PROCESS_ERROR').payerMessage,
       startsWith('Something went wrong while processing your payment.'),
     );
     expect(
-      const FailureReason(code: 'NEW_CODE').payerMessage,
+      const FailureReasons(failureReasonCode: 'NEW_CODE').payerMessage,
       'Your payment could not be completed. Please try again, or choose another payment method.',
     );
   });
 
   test('an unknown or malformed method does not throw', () {
-    expect(decode('{"paymentMethodCode":"NEW_METHOD","x":1}'), const UnknownPaymentMethodResponse('NEW_METHOD'));
-    // A field of an unexpected type must not turn a created payin into an error.
-    final result =
-        parseCreatePayin('{"paymentMethodResponse":{"paymentMethodCode":"PAYSHAP","reference":"R9","money":"oops"}}')
-            as InstructionsResult;
-    expect(result.paymentMethod, const UnknownPaymentMethodResponse('PAYSHAP'));
-    expect(result.nextStep.reference, 'R9');
+    final unknown = decode(
+      '{"paymentMethodCode":"NEW_METHOD","x":1,"deepLink":"https://example.com/pay","reference":""}',
+    );
+    expect(unknown, isA<UnknownPaymentMethodResponsePayin>());
+    expect((unknown as UnknownPaymentMethodResponsePayin).paymentMethodCode, 'NEW_METHOD');
+    expect(unknown.json['x'], 1); // kept as SYNQT sent it
+    expect(unknown.nextStep().appLink, 'https://example.com/pay');
+    expect(unknown.nextStep().reference, isNull);
+    // A known method whose fields have unexpected types must not turn a created payin into an error.
+    final result = accepted(
+      '{"paymentMethodResponse":{"paymentMethodCode":"PAYSHAP","reference":"R9","money":"oops"}}',
+    );
+    expect(result.paymentMethodResponse, isA<UnknownPaymentMethodResponsePayin>());
+    expect((result.paymentMethodResponse as UnknownPaymentMethodResponsePayin).paymentMethodCode, 'PAYSHAP');
+    expect(result.nextStep()?.reference, 'R9');
+    // CODE_PAYMENT's paymentLocationCustomer needs all three fields.
+    expect(
+      decode('{"paymentMethodCode":"CODE_PAYMENT","paymentLocationCustomer":{"city":"X"}}'),
+      isA<UnknownPaymentMethodResponsePayin>(),
+    );
+    expect(SettlementMethod.fromJson(const {'paymentMethodCode': 'NEW_SETTLEMENT'}), isA<UnknownSettlementMethod>());
   });
 
   test('instructions expose the typed method', () {
-    final result =
-        parseCreatePayin('{"paymentMethodResponse":{"paymentMethodCode":"PAYSHAP","reference":"R9"}}')
-            as InstructionsResult;
-    expect((result.paymentMethod as PayShapResponse).reference, 'R9');
+    final result = accepted('{"paymentMethodResponse":{"paymentMethodCode":"PAYSHAP","reference":"R9"}}');
+    expect((result.paymentMethodResponse as PayShapMethodResponse).reference, 'R9');
   });
 }

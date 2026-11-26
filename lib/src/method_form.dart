@@ -1,3 +1,4 @@
+import 'payin_models.dart';
 import 'payment_methods.dart';
 import 'results.dart';
 import 'strings.dart';
@@ -6,13 +7,13 @@ import 'strings.dart';
 /// returns for the method; [provider] lists the external providers of those banks.
 enum FieldKind { text, email, phone, number, choice, paymentOperator, provider }
 
-/// Every provider of [operators], once each, whichever bank the payer picks.
-List<ExternalProvider> providers(List<PaymentOperator> operators) {
+/// Every provider of [operators] that has a code, once each, whichever bank the payer picks.
+List<ExternalProvider> providers(List<PaymentOperatorIncoming> operators) {
   final seen = <String>{};
   return [
     for (final paymentOperator in operators)
-      for (final provider in paymentOperator.externalProviders)
-        if (seen.add(provider.code)) provider,
+      for (final provider in paymentOperator.externalProviders?.providers ?? const <ExternalProvider>[])
+        if (provider.code case final code? when seen.add(code)) provider,
   ];
 }
 
@@ -75,7 +76,7 @@ final class OneOf {
   final List<Choice> choices;
 }
 
-/// A direct API method's inputs and how they become the typed [PaymentMethod]. Instances are generated into
+/// A direct API method's inputs and how they become the typed [PaymentMethodPayin]. Instances are generated into
 /// method_forms.dart.
 final class MethodForm {
   const MethodForm(this.code, this.name, this.fields, {this.oneOfs = const [], required this.build});
@@ -86,7 +87,7 @@ final class MethodForm {
   final List<OneOf> oneOfs;
 
   /// Throws [SynqtArgumentException] naming the path of a missing required value.
-  final PaymentMethod Function(FormValues) build;
+  final PaymentMethodPayin Function(FormValues) build;
 
   /// The first choice of each question, which the sheet starts with.
   List<Choice> get defaultChoices => [for (final oneOf in oneOfs) oneOf.choices[0]];

@@ -1,19 +1,20 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'model.dart';
-import 'results.dart' show SynqtArgumentException;
+import 'payin_models.dart';
+import 'results.dart' show NextStep, SynqtArgumentException, parseNextStep;
 
-/// The `paymentMethod` object of POST /payins/{idPayin}, one subclass per method. Field rules differ per method and
-/// sometimes per currency.
-sealed class PaymentMethod extends SynqtModel {
-  const PaymentMethod();
+/// The `paymentMethod` of a [Payin] request (POST /payins/{idPayin}), one subclass per method. Field rules differ per
+/// method and sometimes per currency.
+sealed class PaymentMethodPayin extends SynqtModel {
+  const PaymentMethodPayin();
 
   /// The method's code in the API, such as CAPITEC_PAY.
   String get paymentMethodCode;
 }
 
 /// Absa Pay offers a simple, quick and secure way to make payments without needing to input banking login details. Customers can select their preferred account for payment and securely authorize the transaction through the banking app.
-final class AbsaPayMethod extends PaymentMethod {
+final class AbsaPayMethod extends PaymentMethodPayin {
   const AbsaPayMethod({this.account, this.emailAddress, this.passportNumber, this.said, this.customerName});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -46,7 +47,7 @@ final class AbsaPayMethod extends PaymentMethod {
 }
 
 /// Capitec Pay is an easy, fast and safe way to pay without having to enter the bank card details or share banking login information. The customer can choose the account he wants to pay from and authenticate the payment safely in the banking app.
-final class CapitecPayMethod extends PaymentMethod {
+final class CapitecPayMethod extends PaymentMethodPayin {
   const CapitecPayMethod({
     this.account,
     this.emailAddress,
@@ -90,7 +91,7 @@ final class CapitecPayMethod extends PaymentMethod {
 }
 
 /// Card payment method.
-final class CardMethod extends PaymentMethod {
+final class CardMethod extends PaymentMethodPayin {
   const CardMethod({
     required this.card,
     this.paymentContacts,
@@ -122,7 +123,7 @@ final class CardMethod extends PaymentMethod {
 }
 
 /// Convenience Store Payments. Payment method which requires customer to copy Payment Code from the Payment application right after the payment is submitted into kiosk in convenience store during the payment on the cashier.
-final class CodePaymentMethod extends PaymentMethod {
+final class CodePaymentMethod extends PaymentMethodPayin {
   const CodePaymentMethod({
     required this.paymentOperatorCode,
     required this.emailAddress,
@@ -161,7 +162,7 @@ final class CodePaymentMethod extends PaymentMethod {
 }
 
 /// Crypto Offline is a payment method that allows customers to pay by crypto currency from they crypto wallet to an address that they are provided.
-final class CryptoOfflineMethod extends PaymentMethod {
+final class CryptoOfflineMethod extends PaymentMethodPayin {
   const CryptoOfflineMethod({required this.paymentOperatorCode, this.emailAddress});
 
   /// One of following can serve as Payment Operator: min 1, max 30, pattern `^[A-Za-z0-9_-]+$`.
@@ -182,7 +183,7 @@ final class CryptoOfflineMethod extends PaymentMethod {
 }
 
 /// Payment method which requires customer to scan QR code from the Payment application by Customer's Payment service application right after the payment is submitted.
-final class DuitNowMethod extends PaymentMethod {
+final class DuitNowMethod extends PaymentMethodPayin {
   const DuitNowMethod({required this.account, this.paymentOperatorCode, this.emailAddress});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -207,7 +208,7 @@ final class DuitNowMethod extends PaymentMethod {
 }
 
 /// E-Wallet is a payment option on Indonesian market that allows customers to use major Indonesian wallets for payments. Customer is either automatically redirected to a chosen wallet with all payment details pre-populated to finalize the payment or directly receives push notification to authorize the payment in case of OVO wallet.
-final class EWalletMethod extends PaymentMethod {
+final class EWalletMethod extends PaymentMethodPayin {
   const EWalletMethod({required this.paymentOperatorCode, this.account, this.emailAddress, this.phoneNumber});
 
   /// One of following can serve as Payment Operator: min 1, max 30, pattern `^[A-Za-z0-9_-]+$`.
@@ -236,7 +237,7 @@ final class EWalletMethod extends PaymentMethod {
 }
 
 /// FNB Direct EFT is a digital payment method that enables customers to make secure payments directly through their FNB app. Rather than manually entering bank details, customers can approve the payment on their phone, creating a faster, safer, and more seamless checkout experience.
-final class FnbDirectEFTMethod extends PaymentMethod {
+final class FnbDirectEFTMethod extends PaymentMethodPayin {
   const FnbDirectEFTMethod({
     required this.customerName,
     required this.emailAddress,
@@ -275,7 +276,7 @@ final class FnbDirectEFTMethod extends PaymentMethod {
 }
 
 /// FPX (Financial Process Exchange) is a real-time online payment system in Malaysia that enables secure, instant payments by redirecting users to their selected FPX-participating banks.
-final class FpxMethod extends PaymentMethod {
+final class FpxMethod extends PaymentMethodPayin {
   const FpxMethod({required this.account, required this.paymentOperatorCode, this.emailAddress});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -300,7 +301,7 @@ final class FpxMethod extends PaymentMethod {
 }
 
 /// It is India market version of the Offline Bank Transfer which differs in the data which need to be collected and used during a Payment process.
-final class IMPSMethod extends PaymentMethod {
+final class IMPSMethod extends PaymentMethodPayin {
   const IMPSMethod({required this.account, this.emailAddress});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -321,7 +322,7 @@ final class IMPSMethod extends PaymentMethod {
 }
 
 /// Mobile Money is a payment method which allows customers to simply complete a payment from their mobile money wallet.
-final class MobileMoneyMethod extends PaymentMethod {
+final class MobileMoneyMethod extends PaymentMethodPayin {
   const MobileMoneyMethod({
     required this.account,
     required this.phoneNumber,
@@ -355,7 +356,7 @@ final class MobileMoneyMethod extends PaymentMethod {
 }
 
 /// MoMo is a mobile payment method that allows users to complete transactions via the MoMo app. Payments are initiated through QR codes, where users authorize the transaction within the app.
-final class MomoPayMethod extends PaymentMethod {
+final class MomoPayMethod extends PaymentMethodPayin {
   const MomoPayMethod({this.emailAddress});
 
   /// Your customer's e-mail address in RFC 5322 format that is used for identification of the customer's payins.
@@ -372,7 +373,7 @@ final class MomoPayMethod extends PaymentMethod {
 }
 
 /// Nedbank Direct EFT is a digital payment method that allows customers to pay quickly and securely using their Nedbank app. Instead of entering bank details, customers simply approve the payment on their phone, making the checkout process faster, safer, and more convenient.
-final class NedbankDirectEFTMethod extends PaymentMethod {
+final class NedbankDirectEFTMethod extends PaymentMethodPayin {
   const NedbankDirectEFTMethod({required this.account, required this.said, this.emailAddress, this.customerName});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -401,7 +402,7 @@ final class NedbankDirectEFTMethod extends PaymentMethod {
 }
 
 /// Netbanking, also known as online banking or Net Banking is a payment option offered by banks and financial institutions on Indian market that allow customers to use banking services over the internet. In our case, we take advantage of the Netbanking services to offer your customer UPI Payment method to pay funds directly from your customer Net Banking account.
-final class NetBankingMethod extends PaymentMethod {
+final class NetBankingMethod extends PaymentMethodPayin {
   const NetBankingMethod({this.account, this.emailAddress, this.phoneNumber, this.paymentOperatorCode});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -430,7 +431,7 @@ final class NetBankingMethod extends PaymentMethod {
 }
 
 /// Offline Bank Transfer. Payment method which requires customer to copy Payment instruction from the Payment application right after the incoming payment is submitted and create the Payment transfer using the instructions within customer's own payment service such as Internet or mobile banking or wallet.
-final class OfflineMethod extends PaymentMethod {
+final class OfflineMethod extends PaymentMethodPayin {
   const OfflineMethod({
     this.account,
     this.paymentOperatorCode,
@@ -479,7 +480,7 @@ final class OfflineMethod extends PaymentMethod {
 }
 
 /// Online Bank Transfer. Payment method where Customer is redirected to his own preferred Payment service application right after the payment is submitted and create the Payment transfer with pre-filled Payment instruction.
-final class OnlineMethod extends PaymentMethod {
+final class OnlineMethod extends PaymentMethodPayin {
   const OnlineMethod({this.account, this.paymentOperatorCode, this.emailAddress});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -504,7 +505,7 @@ final class OnlineMethod extends PaymentMethod {
 }
 
 /// OTT Voucher is a cash-to-digital payment method that enables customers to make secure online payments using prepaid vouchers. Rather than relying on a credit card or bank account, customers simply enter a unique 12-digit PIN at checkout, creating an accessible, safe, and seamless payment experience.
-final class OttVoucherMethod extends PaymentMethod {
+final class OttVoucherMethod extends PaymentMethodPayin {
   const OttVoucherMethod({
     required this.voucherPin,
     required this.phoneNumber,
@@ -538,7 +539,7 @@ final class OttVoucherMethod extends PaymentMethod {
 }
 
 /// Phone to Account. Payment method which requires customer to scan QR code from the Payment application by Customer's Payment service application right after the payment is submitted.
-final class P2AV2Method extends PaymentMethod {
+final class P2AV2Method extends PaymentMethodPayin {
   const P2AV2Method({required this.paymentOperatorCode, this.account, this.emailAddress});
 
   /// One of following can serve as Payment Operator: min 1, max 30, pattern `^[A-Za-z0-9_-]+$`.
@@ -563,7 +564,7 @@ final class P2AV2Method extends PaymentMethod {
 }
 
 /// PayShap offers a quick, easy, and secure way to send money without having to input banking login details. Customers can make payments using just a phone number or account number, with transactions processed instantly.
-final class PayShapMethod extends PaymentMethod {
+final class PayShapMethod extends PaymentMethodPayin {
   const PayShapMethod({
     required this.paymentOperatorCode,
     this.account,
@@ -617,7 +618,7 @@ final class PayShapMethod extends PaymentMethod {
 }
 
 /// Pay Me is payment method intended for South Africa market which allows customers to send payments by scanning QR codes from supported banks and e-wallets.
-final class PayMeMethod extends PaymentMethod {
+final class PayMeMethod extends PaymentMethodPayin {
   const PayMeMethod({required this.account, this.emailAddress, this.phoneNumber});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -642,7 +643,7 @@ final class PayMeMethod extends PaymentMethod {
 }
 
 /// Pix is a Brazilian payment method which allows customers to send payments using their preferred banking app by either scanning QR code or copy-pasting Pix EMV code.
-final class PixQRMethod extends PaymentMethod {
+final class PixQRMethod extends PaymentMethodPayin {
   const PixQRMethod({required this.account, required this.taxId});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -659,7 +660,7 @@ final class PixQRMethod extends PaymentMethod {
 }
 
 /// Payment method which requires customer to scan QR code from the Payment application by Customer's Payment service application right after the payment is submitted.
-final class PromptPayMethod extends PaymentMethod {
+final class PromptPayMethod extends PaymentMethodPayin {
   const PromptPayMethod({this.account, this.paymentOperatorCode, this.emailAddress});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -684,7 +685,7 @@ final class PromptPayMethod extends PaymentMethod {
 }
 
 /// PSE (Pagos Seguros en L?nea) is a real-time online payment system in Colombia that enables secure, instant bank transfer payments - customers simply log in into their internet banking and authorize pre-populated payment details.
-final class PseMethod extends PaymentMethod {
+final class PseMethod extends PaymentMethodPayin {
   const PseMethod({required this.account, required this.emailAddress, required this.phoneNumber});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -709,7 +710,7 @@ final class PseMethod extends PaymentMethod {
 }
 
 /// QRIS is payment method intended for the Indonesian market which allows users to pay using scanning QR codes by theirs Payment application.
-final class QrisPayMethod extends PaymentMethod {
+final class QrisPayMethod extends PaymentMethodPayin {
   const QrisPayMethod({this.account, this.emailAddress});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -730,7 +731,7 @@ final class QrisPayMethod extends PaymentMethod {
 }
 
 /// QR Ph is payment method intended for Philippine market which allows customers to send payments by scanning QR codes from supported banks and e-wallets.
-final class QrPhMethod extends PaymentMethod {
+final class QrPhMethod extends PaymentMethodPayin {
   const QrPhMethod({this.account, this.emailAddress, this.paymentOperatorCode, this.phoneNumber});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -759,7 +760,7 @@ final class QrPhMethod extends PaymentMethod {
 }
 
 /// SnapScan is a QR-based payment method that allows customers to make fast and secure payments by scanning a QR code using the SnapScan app or by clicking on the payment deep link.
-final class SnapScanQrMethod extends PaymentMethod {
+final class SnapScanQrMethod extends PaymentMethodPayin {
   const SnapScanQrMethod({required this.emailAddress, required this.customerName});
 
   /// Your customer's e-mail address in RFC 5322 format that is used for identification of the customer's payins.
@@ -780,7 +781,7 @@ final class SnapScanQrMethod extends PaymentMethod {
 }
 
 /// UPI Collect is a method of fund transfers in India. This payment method allows users to simply authorize payments through their registered UPI app after receiving a payment collection request.
-final class UpiCollectMethod extends PaymentMethod {
+final class UpiCollectMethod extends PaymentMethodPayin {
   const UpiCollectMethod({
     required this.account,
     required this.upiId,
@@ -814,7 +815,7 @@ final class UpiCollectMethod extends PaymentMethod {
 }
 
 /// UPI (Unified Payments Interface) is a method of fund transfers in India. The mechanism allows two parties to exchange funds using a UPI ID without having to share the banking information with the other party.
-final class UpiIdMethod extends PaymentMethod {
+final class UpiIdMethod extends PaymentMethodPayin {
   const UpiIdMethod({required this.upiId, this.emailAddress});
 
   /// Virtual payment address of the customer on UPI provided by the merchant or obtained during the processing on our platform. max 100, pattern `[a-zA-Z0-9_\-\.]+@[a-zA-Z0-9_\.]+`.
@@ -835,7 +836,7 @@ final class UpiIdMethod extends PaymentMethod {
 }
 
 /// UPI QR is payment method intended for the Indian market. This payment method requires customers to scan QR code by Customer's Payment service application compatible with UPI payment schema.
-final class UpiQRMethod extends PaymentMethod {
+final class UpiQRMethod extends PaymentMethodPayin {
   const UpiQRMethod({this.account, this.upiId, this.emailAddress, this.phoneNumber, this.paymentOperatorCode});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -868,7 +869,7 @@ final class UpiQRMethod extends PaymentMethod {
 }
 
 /// Virtual Accounts. Payment method which requires customer to copy Payment instruction with generated Virtual Account from the Payment application right after the payment is submitted and create the Payment transfer using the instructions within customer's own payment service such as Internet or mobile banking, wallet or ATM.
-final class VaPayMethod extends PaymentMethod {
+final class VaPayMethod extends PaymentMethodPayin {
   const VaPayMethod({
     this.account,
     this.paymentOperatorCode,
@@ -907,7 +908,7 @@ final class VaPayMethod extends PaymentMethod {
 }
 
 /// Virtual Accounts With Verified Bank Account. Payment method which requires customer to copy Payment instruction with assigned Virtual Account from the Payment application right after the payment is submitted and create the Payment transfer using the instructions within customer's own payment service such as Internet or mobile banking, wallet or ATM.
-final class VaPayVerifMethod extends PaymentMethod {
+final class VaPayVerifMethod extends PaymentMethodPayin {
   const VaPayVerifMethod({required this.account, required this.paymentOperatorCode, this.emailAddress});
 
   /// Parameters of your customer's bank or wallet account which your customer sends funds from.
@@ -932,7 +933,7 @@ final class VaPayVerifMethod extends PaymentMethod {
 }
 
 /// Viet QR is a payment method intended for the Vietnamese market which allows users to pay using scanning QR codes by theirs payment application or internet banking.
-final class VietQRMethod extends PaymentMethod {
+final class VietQRMethod extends PaymentMethodPayin {
   const VietQRMethod({required this.paymentOperatorCode, this.emailAddress});
 
   /// One of following can serve as Payment Operator: min 1, max 30, pattern `^[A-Za-z0-9_-]+$`.
@@ -953,7 +954,7 @@ final class VietQRMethod extends PaymentMethod {
 }
 
 /// Zapper is a QR-based payment method that allows customers to make fast and secure payments by scanning a QR code using the Zapper app or by clicking on the payment deep link.
-final class ZapperQrMethod extends PaymentMethod {
+final class ZapperQrMethod extends PaymentMethodPayin {
   const ZapperQrMethod({required this.emailAddress, required this.customerName});
 
   /// Your customer's e-mail address in RFC 5322 format that is used for identification of the customer's payins.
@@ -971,6 +972,19 @@ final class ZapperQrMethod extends PaymentMethod {
     'emailAddress': emailAddress,
     'customerName': customerName.toJson(),
   };
+}
+
+/// A method an add-on builds as JSON, such as CARD from SYNQT's card add-on. Not for apps to create: only
+/// `package:synqt/addon.dart` exports it.
+final class AddonPaymentMethod extends PaymentMethodPayin {
+  const AddonPaymentMethod(this.paymentMethodCode, this._json);
+
+  @override
+  final String paymentMethodCode;
+  final Map<String, Object?> _json;
+
+  @override
+  Map<String, Object?> toJson() => {..._json, 'paymentMethodCode': paymentMethodCode};
 }
 
 /// The payer's bank or wallet account. Each method needs different fields and checks them when it is sent.
@@ -1180,7 +1194,7 @@ final class RecurringPayment extends SynqtModel {
 
 /// Throws [SynqtArgumentException] when a shared type such as [Account] lacks a field this method needs, or has one it does
 /// not take.
-void validatePaymentMethod(PaymentMethod method) {
+void validatePaymentMethod(PaymentMethodPayin method) {
   switch (method) {
     case final AbsaPayMethod model:
       _check(
@@ -1367,72 +1381,90 @@ void _validateCardPaymentContacts(CardPaymentContacts model) {
   if (model.shippingContact != null) _validateCardPaymentContact(model.shippingContact!);
 }
 
-/// `paymentMethodResponse` of a created payin, one subclass per method. Unknown methods read as [UnknownPaymentMethodResponse].
-sealed class PaymentMethodResponse {
-  const PaymentMethodResponse();
+/// `paymentMethodResponse` of a created payin, one subclass per method. Unknown methods read as [UnknownPaymentMethodResponsePayin].
+sealed class PaymentMethodResponsePayin {
+  const PaymentMethodResponsePayin();
 
   String get paymentMethodCode;
 
-  /// Throws when a field has an unexpected type; callers fall back to [UnknownPaymentMethodResponse].
-  factory PaymentMethodResponse.fromJson(Map<String, Object?> json) =>
-      switch (json['paymentMethodCode'] as String? ?? '') {
-        'ABSA_PAY' => AbsaPayResponse.fromJson(json),
-        'CAPITEC_PAY' => CapitecPayResponse.fromJson(json),
-        'CARD' => CardResponse.fromJson(json),
-        'CODE_PAYMENT' => CodePaymentResponse.fromJson(json),
-        'CRYPTO_OFFLINE' => CryptoOfflineResponse.fromJson(json),
-        'DUITNOW' => DuitNowResponse.fromJson(json),
-        'EWALLET' => EWalletResponse.fromJson(json),
-        'FNB_DIRECT_EFT' => FnbDirectEFTResponse.fromJson(json),
-        'FPX' => FpxResponse.fromJson(json),
-        'IMPS' => IMPSResponse.fromJson(json),
-        'MOBILE_MONEY' => MobileMoneyResponse.fromJson(json),
-        'MOMOPAY' => MomoPayResponse.fromJson(json),
-        'NEDBANK_DIRECT_EFT' => NedbankDirectEFTResponse.fromJson(json),
-        'NETBANKING' => NetBankingResponse.fromJson(json),
-        'OFFLINE' => OfflineResponse.fromJson(json),
-        'ONLINE' => OnlineResponse.fromJson(json),
-        'OTT_VOUCHER' => OttVoucherResponse.fromJson(json),
-        'P2A_V2' => P2AV2Response.fromJson(json),
-        'PAYSHAP' => PayShapResponse.fromJson(json),
-        'PAY_ME' => PayMeResponse.fromJson(json),
-        'PIXQR' => PixQRResponse.fromJson(json),
-        'PROMPTPAY' => PromptPayResponse.fromJson(json),
-        'PSE' => PseResponse.fromJson(json),
-        'QRISPAY' => QrisPayResponse.fromJson(json),
-        'QRPH' => QrPhResponse.fromJson(json),
-        'SNAPSCAN_QR' => SnapScanQrResponse.fromJson(json),
-        'UPICOLLECT' => UpiCollectResponse.fromJson(json),
-        'UPIID' => UpiIdResponse.fromJson(json),
-        'UPIQR' => UpiQRResponse.fromJson(json),
-        'VAPAY' => VaPayResponse.fromJson(json),
-        'VAPAY_VERIF' => VaPayVerifResponse.fromJson(json),
-        'VIETQR' => VietQRResponse.fromJson(json),
-        'ZAPPER_QR' => ZapperQrResponse.fromJson(json),
-        final code => UnknownPaymentMethodResponse(code),
+  /// What the payer does next: the QR code, app link, amount, reference and expiry this method returned.
+  NextStep nextStep();
+
+  /// A known `paymentMethodCode` whose fields have unexpected types also reads as [UnknownPaymentMethodResponsePayin], so a response never fails on
+  /// them.
+  factory PaymentMethodResponsePayin.fromJson(Map<String, Object?> json) {
+    final code = switch (json['paymentMethodCode']) {
+      final String value => value,
+      _ => '',
+    };
+    try {
+      return switch (code) {
+        'ABSA_PAY' => AbsaPayMethodResponse.fromJson(json),
+        'CAPITEC_PAY' => CapitecPayMethodResponse.fromJson(json),
+        'CARD' => CardMethodResponse.fromJson(json),
+        'CODE_PAYMENT' => CodePaymentMethodResponse.fromJson(json),
+        'CRYPTO_OFFLINE' => CryptoOfflineMethodResponse.fromJson(json),
+        'DUITNOW' => DuitNowPayMethodResponse.fromJson(json),
+        'EWALLET' => EWalletMethodResponse.fromJson(json),
+        'FNB_DIRECT_EFT' => FnbDirectEFTMethodResponse.fromJson(json),
+        'FPX' => FpxMethodResponse.fromJson(json),
+        'IMPS' => IMPSMethodResponse.fromJson(json),
+        'MOBILE_MONEY' => MobileMoneyMethodResponse.fromJson(json),
+        'MOMOPAY' => MomoPayMethodResponse.fromJson(json),
+        'NEDBANK_DIRECT_EFT' => NedbankDirectEFTMethodResponse.fromJson(json),
+        'NETBANKING' => NetBankingMethodResponse.fromJson(json),
+        'OFFLINE' => OfflineMethodResponse.fromJson(json),
+        'ONLINE' => OnlineMethodResponse.fromJson(json),
+        'OTT_VOUCHER' => OttVoucherMethodResponse.fromJson(json),
+        'P2A_V2' => P2AV2MethodResponse.fromJson(json),
+        'PAYSHAP' => PayShapMethodResponse.fromJson(json),
+        'PAY_ME' => PayMeMethodResponse.fromJson(json),
+        'PIXQR' => PixQRMethodResponse.fromJson(json),
+        'PROMPTPAY' => PromptPayMethodResponse.fromJson(json),
+        'PSE' => PseMethodResponse.fromJson(json),
+        'QRISPAY' => QrisPayMethodResponse.fromJson(json),
+        'QRPH' => QrPhMethodResponse.fromJson(json),
+        'SNAPSCAN_QR' => SnapScanQrMethodResponse.fromJson(json),
+        'UPICOLLECT' => UpiCollectMethodResponse.fromJson(json),
+        'UPIID' => UpiIdMethodResponse.fromJson(json),
+        'UPIQR' => UpiQRMethodResponse.fromJson(json),
+        'VAPAY' => VaPayMethodResponse.fromJson(json),
+        'VAPAY_VERIF' => VaPayVerifMethodResponse.fromJson(json),
+        'VIETQR' => VietQRMethodResponse.fromJson(json),
+        'ZAPPER_QR' => ZapperQrMethodResponse.fromJson(json),
+        _ => UnknownPaymentMethodResponsePayin(code, json),
       };
+    } on TypeError {
+      return UnknownPaymentMethodResponsePayin(code, json);
+    }
+  }
 }
 
-/// A `paymentMethodCode` this SDK version does not know yet; new values are non-breaking API changes.
-final class UnknownPaymentMethodResponse extends PaymentMethodResponse {
-  const UnknownPaymentMethodResponse(this.paymentMethodCode);
+/// A `paymentMethodCode` this SDK version does not know yet, with its JSON as SYNQT sent it; new values are non-breaking API
+/// changes.
+final class UnknownPaymentMethodResponsePayin extends PaymentMethodResponsePayin {
+  const UnknownPaymentMethodResponsePayin(this.paymentMethodCode, this.json);
 
   @override
   final String paymentMethodCode;
+  final Map<String, Object?> json;
+
+  @override
+  NextStep nextStep() => parseNextStep(json);
 
   @override
   bool operator ==(Object other) =>
-      other is UnknownPaymentMethodResponse && other.paymentMethodCode == paymentMethodCode;
+      other is UnknownPaymentMethodResponsePayin && other.paymentMethodCode == paymentMethodCode;
 
   @override
   int get hashCode => paymentMethodCode.hashCode;
 
   @override
-  String toString() => 'UnknownPaymentMethodResponse($paymentMethodCode)';
+  String toString() => 'UnknownPaymentMethodResponsePayin($paymentMethodCode)';
 }
 
-final class AbsaPayResponse extends PaymentMethodResponse {
-  const AbsaPayResponse({
+final class AbsaPayMethodResponse extends PaymentMethodResponsePayin {
+  const AbsaPayMethodResponse({
     this.idPayin,
     this.idPayment,
     this.accounts,
@@ -1486,7 +1518,10 @@ final class AbsaPayResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'ABSA_PAY';
 
-  factory AbsaPayResponse.fromJson(Map<String, Object?> json) => AbsaPayResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory AbsaPayMethodResponse.fromJson(Map<String, Object?> json) => AbsaPayMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     accounts: (json['accounts'] as List?)
@@ -1505,8 +1540,8 @@ final class AbsaPayResponse extends PaymentMethodResponse {
   );
 }
 
-final class CapitecPayResponse extends PaymentMethodResponse {
-  const CapitecPayResponse({
+final class CapitecPayMethodResponse extends PaymentMethodResponsePayin {
+  const CapitecPayMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -1562,7 +1597,10 @@ final class CapitecPayResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'CAPITEC_PAY';
 
-  factory CapitecPayResponse.fromJson(Map<String, Object?> json) => CapitecPayResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory CapitecPayMethodResponse.fromJson(Map<String, Object?> json) => CapitecPayMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -1579,8 +1617,8 @@ final class CapitecPayResponse extends PaymentMethodResponse {
   );
 }
 
-final class CardResponse extends PaymentMethodResponse {
-  const CardResponse({
+final class CardMethodResponse extends PaymentMethodResponsePayin {
+  const CardMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -1624,7 +1662,10 @@ final class CardResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'CARD';
 
-  factory CardResponse.fromJson(Map<String, Object?> json) => CardResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory CardMethodResponse.fromJson(Map<String, Object?> json) => CardMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -1638,8 +1679,8 @@ final class CardResponse extends PaymentMethodResponse {
   );
 }
 
-final class CodePaymentResponse extends PaymentMethodResponse {
-  const CodePaymentResponse({
+final class CodePaymentMethodResponse extends PaymentMethodResponsePayin {
+  const CodePaymentMethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -1699,7 +1740,10 @@ final class CodePaymentResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'CODE_PAYMENT';
 
-  factory CodePaymentResponse.fromJson(Map<String, Object?> json) => CodePaymentResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory CodePaymentMethodResponse.fromJson(Map<String, Object?> json) => CodePaymentMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -1717,8 +1761,8 @@ final class CodePaymentResponse extends PaymentMethodResponse {
   );
 }
 
-final class CryptoOfflineResponse extends PaymentMethodResponse {
-  const CryptoOfflineResponse({
+final class CryptoOfflineMethodResponse extends PaymentMethodResponsePayin {
+  const CryptoOfflineMethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -1774,7 +1818,11 @@ final class CryptoOfflineResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'CRYPTO_OFFLINE';
 
-  factory CryptoOfflineResponse.fromJson(Map<String, Object?> json) => CryptoOfflineResponse(
+  @override
+  NextStep nextStep() =>
+      NextStep(qrCodeImageUrl: _text(qrCode), reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory CryptoOfflineMethodResponse.fromJson(Map<String, Object?> json) => CryptoOfflineMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -1791,8 +1839,8 @@ final class CryptoOfflineResponse extends PaymentMethodResponse {
   );
 }
 
-final class DuitNowResponse extends PaymentMethodResponse {
-  const DuitNowResponse({
+final class DuitNowPayMethodResponse extends PaymentMethodResponsePayin {
+  const DuitNowPayMethodResponse({
     this.idPayin,
     this.idPayment,
     this.accountCustomer,
@@ -1850,7 +1898,15 @@ final class DuitNowResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'DUITNOW';
 
-  factory DuitNowResponse.fromJson(Map<String, Object?> json) => DuitNowResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    qrCodeImageUrl: _text(qrCode),
+    amountToPay: moneyRequired,
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory DuitNowPayMethodResponse.fromJson(Map<String, Object?> json) => DuitNowPayMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     accountCustomer: _obj(json['accountCustomer'], AccountResponse.fromJson),
@@ -1868,8 +1924,8 @@ final class DuitNowResponse extends PaymentMethodResponse {
   );
 }
 
-final class EWalletResponse extends PaymentMethodResponse {
-  const EWalletResponse({
+final class EWalletMethodResponse extends PaymentMethodResponsePayin {
+  const EWalletMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -1913,7 +1969,10 @@ final class EWalletResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'EWALLET';
 
-  factory EWalletResponse.fromJson(Map<String, Object?> json) => EWalletResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory EWalletMethodResponse.fromJson(Map<String, Object?> json) => EWalletMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -1927,8 +1986,8 @@ final class EWalletResponse extends PaymentMethodResponse {
   );
 }
 
-final class FnbDirectEFTResponse extends PaymentMethodResponse {
-  const FnbDirectEFTResponse({
+final class FnbDirectEFTMethodResponse extends PaymentMethodResponsePayin {
+  const FnbDirectEFTMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -1984,7 +2043,10 @@ final class FnbDirectEFTResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'FNB_DIRECT_EFT';
 
-  factory FnbDirectEFTResponse.fromJson(Map<String, Object?> json) => FnbDirectEFTResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory FnbDirectEFTMethodResponse.fromJson(Map<String, Object?> json) => FnbDirectEFTMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -2001,8 +2063,8 @@ final class FnbDirectEFTResponse extends PaymentMethodResponse {
   );
 }
 
-final class FpxResponse extends PaymentMethodResponse {
-  const FpxResponse({
+final class FpxMethodResponse extends PaymentMethodResponsePayin {
+  const FpxMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -2042,7 +2104,10 @@ final class FpxResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'FPX';
 
-  factory FpxResponse.fromJson(Map<String, Object?> json) => FpxResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory FpxMethodResponse.fromJson(Map<String, Object?> json) => FpxMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -2056,8 +2121,8 @@ final class FpxResponse extends PaymentMethodResponse {
 }
 
 /// The account parameters for this payment method are used to show payment instructions to the customer.
-final class IMPSResponse extends PaymentMethodResponse {
-  const IMPSResponse({
+final class IMPSMethodResponse extends PaymentMethodResponsePayin {
+  const IMPSMethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -2105,7 +2170,11 @@ final class IMPSResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'IMPS';
 
-  factory IMPSResponse.fromJson(Map<String, Object?> json) => IMPSResponse(
+  @override
+  NextStep nextStep() =>
+      NextStep(qrCodeImageUrl: _text(qrCode), reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory IMPSMethodResponse.fromJson(Map<String, Object?> json) => IMPSMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -2120,8 +2189,8 @@ final class IMPSResponse extends PaymentMethodResponse {
   );
 }
 
-final class MobileMoneyResponse extends PaymentMethodResponse {
-  const MobileMoneyResponse({
+final class MobileMoneyMethodResponse extends PaymentMethodResponsePayin {
+  const MobileMoneyMethodResponse({
     this.idPayin,
     this.idPayment,
     this.accountCustomer,
@@ -2177,7 +2246,10 @@ final class MobileMoneyResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'MOBILE_MONEY';
 
-  factory MobileMoneyResponse.fromJson(Map<String, Object?> json) => MobileMoneyResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory MobileMoneyMethodResponse.fromJson(Map<String, Object?> json) => MobileMoneyMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     accountCustomer: _obj(json['accountCustomer'], AccountResponse.fromJson),
@@ -2194,8 +2266,8 @@ final class MobileMoneyResponse extends PaymentMethodResponse {
   );
 }
 
-final class MomoPayResponse extends PaymentMethodResponse {
-  const MomoPayResponse({
+final class MomoPayMethodResponse extends PaymentMethodResponsePayin {
+  const MomoPayMethodResponse({
     this.idPayin,
     this.idPayment,
     this.emailAddress,
@@ -2247,7 +2319,15 @@ final class MomoPayResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'MOMOPAY';
 
-  factory MomoPayResponse.fromJson(Map<String, Object?> json) => MomoPayResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    qrCodeImageUrl: _text(qrCode),
+    qrCodeData: _text(qrRawData),
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory MomoPayMethodResponse.fromJson(Map<String, Object?> json) => MomoPayMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     emailAddress: json['emailAddress'] as String?,
@@ -2263,8 +2343,8 @@ final class MomoPayResponse extends PaymentMethodResponse {
   );
 }
 
-final class NedbankDirectEFTResponse extends PaymentMethodResponse {
-  const NedbankDirectEFTResponse({
+final class NedbankDirectEFTMethodResponse extends PaymentMethodResponsePayin {
+  const NedbankDirectEFTMethodResponse({
     this.idPayin,
     this.idPayment,
     this.accountCustomer,
@@ -2316,7 +2396,10 @@ final class NedbankDirectEFTResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'NEDBANK_DIRECT_EFT';
 
-  factory NedbankDirectEFTResponse.fromJson(Map<String, Object?> json) => NedbankDirectEFTResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory NedbankDirectEFTMethodResponse.fromJson(Map<String, Object?> json) => NedbankDirectEFTMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     accountCustomer: _obj(json['accountCustomer'], AccountResponse.fromJson),
@@ -2332,8 +2415,8 @@ final class NedbankDirectEFTResponse extends PaymentMethodResponse {
   );
 }
 
-final class NetBankingResponse extends PaymentMethodResponse {
-  const NetBankingResponse({
+final class NetBankingMethodResponse extends PaymentMethodResponsePayin {
+  const NetBankingMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -2385,7 +2468,10 @@ final class NetBankingResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'NETBANKING';
 
-  factory NetBankingResponse.fromJson(Map<String, Object?> json) => NetBankingResponse(
+  @override
+  NextStep nextStep() => NextStep(appLink: _text(deepLink), reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory NetBankingMethodResponse.fromJson(Map<String, Object?> json) => NetBankingMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -2402,8 +2488,8 @@ final class NetBankingResponse extends PaymentMethodResponse {
 }
 
 /// The account parameters for this payment method are used to show payment instructions to the customer.
-final class OfflineResponse extends PaymentMethodResponse {
-  const OfflineResponse({
+final class OfflineMethodResponse extends PaymentMethodResponsePayin {
+  const OfflineMethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -2485,7 +2571,16 @@ final class OfflineResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'OFFLINE';
 
-  factory OfflineResponse.fromJson(Map<String, Object?> json) => OfflineResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    qrCodeImageUrl: _text(qrCode),
+    amountToPay: moneyRequired,
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+    payInto: account,
+  );
+
+  factory OfflineMethodResponse.fromJson(Map<String, Object?> json) => OfflineMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -2509,8 +2604,8 @@ final class OfflineResponse extends PaymentMethodResponse {
   );
 }
 
-final class OnlineResponse extends PaymentMethodResponse {
-  const OnlineResponse({
+final class OnlineMethodResponse extends PaymentMethodResponsePayin {
+  const OnlineMethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -2556,7 +2651,10 @@ final class OnlineResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'ONLINE';
 
-  factory OnlineResponse.fromJson(Map<String, Object?> json) => OnlineResponse(
+  @override
+  NextStep nextStep() => NextStep(amountToPay: moneyRequired, reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory OnlineMethodResponse.fromJson(Map<String, Object?> json) => OnlineMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -2571,8 +2669,8 @@ final class OnlineResponse extends PaymentMethodResponse {
   );
 }
 
-final class OttVoucherResponse extends PaymentMethodResponse {
-  const OttVoucherResponse({
+final class OttVoucherMethodResponse extends PaymentMethodResponsePayin {
+  const OttVoucherMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -2620,7 +2718,10 @@ final class OttVoucherResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'OTT_VOUCHER';
 
-  factory OttVoucherResponse.fromJson(Map<String, Object?> json) => OttVoucherResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory OttVoucherMethodResponse.fromJson(Map<String, Object?> json) => OttVoucherMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -2636,8 +2737,8 @@ final class OttVoucherResponse extends PaymentMethodResponse {
 }
 
 /// The account parameters for this payment method are used to show payment instructions to the customer.
-final class P2AV2Response extends PaymentMethodResponse {
-  const P2AV2Response({
+final class P2AV2MethodResponse extends PaymentMethodResponsePayin {
+  const P2AV2MethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -2701,7 +2802,11 @@ final class P2AV2Response extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'P2A_V2';
 
-  factory P2AV2Response.fromJson(Map<String, Object?> json) => P2AV2Response(
+  @override
+  NextStep nextStep() =>
+      NextStep(qrCodeImageUrl: _text(qrCode), reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory P2AV2MethodResponse.fromJson(Map<String, Object?> json) => P2AV2MethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -2720,8 +2825,8 @@ final class P2AV2Response extends PaymentMethodResponse {
   );
 }
 
-final class PayShapResponse extends PaymentMethodResponse {
-  const PayShapResponse({
+final class PayShapMethodResponse extends PaymentMethodResponsePayin {
+  const PayShapMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -2771,7 +2876,7 @@ final class PayShapResponse extends PaymentMethodResponse {
   final SelectedPaymentOperatorIncomingResponse? paymentOperator;
 
   /// TODO:
-  final ExternalProviderResponse? externalProvider;
+  final ExternalProvider? externalProvider;
 
   /// min 13, max 13, pattern `^[0-9]*$`.
   final String? said;
@@ -2785,7 +2890,10 @@ final class PayShapResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'PAYSHAP';
 
-  factory PayShapResponse.fromJson(Map<String, Object?> json) => PayShapResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory PayShapMethodResponse.fromJson(Map<String, Object?> json) => PayShapMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -2797,15 +2905,15 @@ final class PayShapResponse extends PaymentMethodResponse {
     reference: json['reference'] as String?,
     returnUrl: json['returnUrl'] as String?,
     paymentOperator: _obj(json['paymentOperator'], SelectedPaymentOperatorIncomingResponse.fromJson),
-    externalProvider: _obj(json['externalProvider'], ExternalProviderResponse.fromJson),
+    externalProvider: _obj(json['externalProvider'], ExternalProvider.fromJson),
     said: json['said'] as String?,
     acceptedAt: json['acceptedAt'] as String?,
     expireAt: json['expireAt'] as String?,
   );
 }
 
-final class PayMeResponse extends PaymentMethodResponse {
-  const PayMeResponse({
+final class PayMeMethodResponse extends PaymentMethodResponsePayin {
+  const PayMeMethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -2867,7 +2975,16 @@ final class PayMeResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'PAY_ME';
 
-  factory PayMeResponse.fromJson(Map<String, Object?> json) => PayMeResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    appLink: _text(payMeDeepLink),
+    qrCodeImageUrl: _text(qrCode),
+    amountToPay: moneyRequired,
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory PayMeMethodResponse.fromJson(Map<String, Object?> json) => PayMeMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -2886,8 +3003,8 @@ final class PayMeResponse extends PaymentMethodResponse {
   );
 }
 
-final class PixQRResponse extends PaymentMethodResponse {
-  const PixQRResponse({
+final class PixQRMethodResponse extends PaymentMethodResponsePayin {
+  const PixQRMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -2947,7 +3064,15 @@ final class PixQRResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'PIXQR';
 
-  factory PixQRResponse.fromJson(Map<String, Object?> json) => PixQRResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    qrCodeImageUrl: _text(qrCode),
+    qrCodeData: _text(qrRawData),
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory PixQRMethodResponse.fromJson(Map<String, Object?> json) => PixQRMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -2965,8 +3090,8 @@ final class PixQRResponse extends PaymentMethodResponse {
   );
 }
 
-final class PromptPayResponse extends PaymentMethodResponse {
-  const PromptPayResponse({
+final class PromptPayMethodResponse extends PaymentMethodResponsePayin {
+  const PromptPayMethodResponse({
     this.idPayin,
     this.idPayment,
     this.accountCustomer,
@@ -3020,7 +3145,15 @@ final class PromptPayResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'PROMPTPAY';
 
-  factory PromptPayResponse.fromJson(Map<String, Object?> json) => PromptPayResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    qrCodeImageUrl: _text(qrCode),
+    amountToPay: moneyRequired,
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory PromptPayMethodResponse.fromJson(Map<String, Object?> json) => PromptPayMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     accountCustomer: _obj(json['accountCustomer'], AccountResponse.fromJson),
@@ -3037,8 +3170,8 @@ final class PromptPayResponse extends PaymentMethodResponse {
   );
 }
 
-final class PseResponse extends PaymentMethodResponse {
-  const PseResponse({
+final class PseMethodResponse extends PaymentMethodResponsePayin {
+  const PseMethodResponse({
     this.idPayin,
     this.idPayment,
     this.accountCustomer,
@@ -3086,7 +3219,10 @@ final class PseResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'PSE';
 
-  factory PseResponse.fromJson(Map<String, Object?> json) => PseResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory PseMethodResponse.fromJson(Map<String, Object?> json) => PseMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     accountCustomer: _obj(json['accountCustomer'], AccountResponse.fromJson),
@@ -3101,8 +3237,8 @@ final class PseResponse extends PaymentMethodResponse {
   );
 }
 
-final class QrisPayResponse extends PaymentMethodResponse {
-  const QrisPayResponse({
+final class QrisPayMethodResponse extends PaymentMethodResponsePayin {
+  const QrisPayMethodResponse({
     this.idPayin,
     this.idPayment,
     this.accountCustomerUsedForPayment,
@@ -3158,7 +3294,15 @@ final class QrisPayResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'QRISPAY';
 
-  factory QrisPayResponse.fromJson(Map<String, Object?> json) => QrisPayResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    qrCodeImageUrl: _text(qrCode),
+    qrCodeData: _text(qrRawData),
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory QrisPayMethodResponse.fromJson(Map<String, Object?> json) => QrisPayMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     accountCustomerUsedForPayment: _obj(json['accountCustomerUsedForPayment'], AccountResponse.fromJson),
@@ -3175,8 +3319,8 @@ final class QrisPayResponse extends PaymentMethodResponse {
   );
 }
 
-final class QrPhResponse extends PaymentMethodResponse {
-  const QrPhResponse({
+final class QrPhMethodResponse extends PaymentMethodResponsePayin {
+  const QrPhMethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -3238,7 +3382,15 @@ final class QrPhResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'QRPH';
 
-  factory QrPhResponse.fromJson(Map<String, Object?> json) => QrPhResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    qrCodeImageUrl: _text(qrCode),
+    amountToPay: moneyRequired,
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory QrPhMethodResponse.fromJson(Map<String, Object?> json) => QrPhMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -3257,8 +3409,8 @@ final class QrPhResponse extends PaymentMethodResponse {
   );
 }
 
-final class SnapScanQrResponse extends PaymentMethodResponse {
-  const SnapScanQrResponse({
+final class SnapScanQrMethodResponse extends PaymentMethodResponsePayin {
+  const SnapScanQrMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -3310,7 +3462,16 @@ final class SnapScanQrResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'SNAPSCAN_QR';
 
-  factory SnapScanQrResponse.fromJson(Map<String, Object?> json) => SnapScanQrResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    appLink: _text(snapscanQrDeepLink),
+    qrCodeImageUrl: _text(qrCode),
+    qrCodeData: _text(qrRawData),
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory SnapScanQrMethodResponse.fromJson(Map<String, Object?> json) => SnapScanQrMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -3326,8 +3487,8 @@ final class SnapScanQrResponse extends PaymentMethodResponse {
   );
 }
 
-final class UpiCollectResponse extends PaymentMethodResponse {
-  const UpiCollectResponse({
+final class UpiCollectMethodResponse extends PaymentMethodResponsePayin {
+  const UpiCollectMethodResponse({
     this.idPayin,
     this.idPayment,
     this.accountCustomer,
@@ -3379,7 +3540,10 @@ final class UpiCollectResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'UPICOLLECT';
 
-  factory UpiCollectResponse.fromJson(Map<String, Object?> json) => UpiCollectResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory UpiCollectMethodResponse.fromJson(Map<String, Object?> json) => UpiCollectMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     accountCustomer: _obj(json['accountCustomer'], AccountResponse.fromJson),
@@ -3395,8 +3559,8 @@ final class UpiCollectResponse extends PaymentMethodResponse {
   );
 }
 
-final class UpiIdResponse extends PaymentMethodResponse {
-  const UpiIdResponse({
+final class UpiIdMethodResponse extends PaymentMethodResponsePayin {
+  const UpiIdMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -3436,7 +3600,10 @@ final class UpiIdResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'UPIID';
 
-  factory UpiIdResponse.fromJson(Map<String, Object?> json) => UpiIdResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory UpiIdMethodResponse.fromJson(Map<String, Object?> json) => UpiIdMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -3449,8 +3616,8 @@ final class UpiIdResponse extends PaymentMethodResponse {
   );
 }
 
-final class UpiQRResponse extends PaymentMethodResponse {
-  const UpiQRResponse({
+final class UpiQRMethodResponse extends PaymentMethodResponsePayin {
+  const UpiQRMethodResponse({
     this.idPayin,
     this.idPayment,
     this.accountCustomer,
@@ -3534,7 +3701,15 @@ final class UpiQRResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'UPIQR';
 
-  factory UpiQRResponse.fromJson(Map<String, Object?> json) => UpiQRResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    appLink: _text(upiQrDeepLink),
+    qrCodeImageUrl: _text(qrCode),
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory UpiQRMethodResponse.fromJson(Map<String, Object?> json) => UpiQRMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     accountCustomer: _obj(json['accountCustomer'], AccountResponse.fromJson),
@@ -3559,8 +3734,8 @@ final class UpiQRResponse extends PaymentMethodResponse {
 }
 
 /// The account parameters for this payment method are used to show payment instructions to the customer.
-final class VaPayResponse extends PaymentMethodResponse {
-  const VaPayResponse({
+final class VaPayMethodResponse extends PaymentMethodResponsePayin {
+  const VaPayMethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -3626,7 +3801,10 @@ final class VaPayResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'VAPAY';
 
-  factory VaPayResponse.fromJson(Map<String, Object?> json) => VaPayResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory VaPayMethodResponse.fromJson(Map<String, Object?> json) => VaPayMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -3648,8 +3826,8 @@ final class VaPayResponse extends PaymentMethodResponse {
   );
 }
 
-final class VaPayVerifResponse extends PaymentMethodResponse {
-  const VaPayVerifResponse({
+final class VaPayVerifMethodResponse extends PaymentMethodResponsePayin {
+  const VaPayVerifMethodResponse({
     this.idPayin,
     this.idPayment,
     this.account,
@@ -3697,7 +3875,10 @@ final class VaPayVerifResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'VAPAY_VERIF';
 
-  factory VaPayVerifResponse.fromJson(Map<String, Object?> json) => VaPayVerifResponse(
+  @override
+  NextStep nextStep() => NextStep(reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory VaPayVerifMethodResponse.fromJson(Map<String, Object?> json) => VaPayVerifMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     account: _obj(json['account'], AccountResponse.fromJson),
@@ -3712,8 +3893,8 @@ final class VaPayVerifResponse extends PaymentMethodResponse {
   );
 }
 
-final class VietQRResponse extends PaymentMethodResponse {
-  const VietQRResponse({
+final class VietQRMethodResponse extends PaymentMethodResponsePayin {
+  const VietQRMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -3765,7 +3946,11 @@ final class VietQRResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'VIETQR';
 
-  factory VietQRResponse.fromJson(Map<String, Object?> json) => VietQRResponse(
+  @override
+  NextStep nextStep() =>
+      NextStep(qrCodeImageUrl: _text(qrCode), reference: _text(reference), expiresAt: _text(expireAt));
+
+  factory VietQRMethodResponse.fromJson(Map<String, Object?> json) => VietQRMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -3781,8 +3966,8 @@ final class VietQRResponse extends PaymentMethodResponse {
   );
 }
 
-final class ZapperQrResponse extends PaymentMethodResponse {
-  const ZapperQrResponse({
+final class ZapperQrMethodResponse extends PaymentMethodResponsePayin {
+  const ZapperQrMethodResponse({
     this.idPayin,
     this.idPayment,
     this.money,
@@ -3834,7 +4019,16 @@ final class ZapperQrResponse extends PaymentMethodResponse {
   @override
   String get paymentMethodCode => 'ZAPPER_QR';
 
-  factory ZapperQrResponse.fromJson(Map<String, Object?> json) => ZapperQrResponse(
+  @override
+  NextStep nextStep() => NextStep(
+    appLink: _text(zapperQrDeepLink),
+    qrCodeImageUrl: _text(qrCode),
+    qrCodeData: _text(qrRawData),
+    reference: _text(reference),
+    expiresAt: _text(expireAt),
+  );
+
+  factory ZapperQrMethodResponse.fromJson(Map<String, Object?> json) => ZapperQrMethodResponse(
     idPayin: json['idPayin'] as String?,
     idPayment: json['idPayment'] as String?,
     money: _obj(json['money'], MoneyResponse.fromJson),
@@ -3902,20 +4096,6 @@ final class AccountResponse extends Object {
     bankProvince: json['bankProvince'] as String?,
     accountIndex: json['accountIndex'] as int?,
   );
-}
-
-/// TODO: Add description
-final class ExternalProviderResponse extends Object {
-  const ExternalProviderResponse({this.code, this.name});
-
-  /// min 1, max 128. Always present per spec.
-  final String? code;
-
-  /// min 1. Always present per spec.
-  final String? name;
-
-  factory ExternalProviderResponse.fromJson(Map<String, Object?> json) =>
-      ExternalProviderResponse(code: json['code'] as String?, name: json['name'] as String?);
 }
 
 /// External payment / transaction reference is a unique identifier assigned to a financial transaction. Customers can usually find it in their banking service such as mobile wallets, internet banking services or bank slips.
@@ -3992,22 +4172,35 @@ sealed class UserInteraction {
 
   String get type;
 
-  /// Throws when a field has an unexpected type; callers fall back to [UnknownUserInteraction].
-  factory UserInteraction.fromJson(Map<String, Object?> json) => switch (json['type'] as String? ?? '') {
-    'CONTENT' => ContentInteraction.fromJson(json),
-    'FORM' => FormInteraction.fromJson(json),
-    'OTP_REQUIRED' => OtpRequiredInteraction.fromJson(json),
-    'REDIRECT' => RedirectInteraction.fromJson(json),
-    final code => UnknownUserInteraction(code),
-  };
+  /// A known `type` whose fields have unexpected types also reads as [UnknownUserInteraction], so a response never fails on
+  /// them.
+  factory UserInteraction.fromJson(Map<String, Object?> json) {
+    final code = switch (json['type']) {
+      final String value => value,
+      _ => '',
+    };
+    try {
+      return switch (code) {
+        'CONTENT' => ContentInteraction.fromJson(json),
+        'FORM' => FormInteraction.fromJson(json),
+        'OTP_REQUIRED' => OtpRequiredInteraction.fromJson(json),
+        'REDIRECT' => RedirectInteraction.fromJson(json),
+        _ => UnknownUserInteraction(code, json),
+      };
+    } on TypeError {
+      return UnknownUserInteraction(code, json);
+    }
+  }
 }
 
-/// A `type` this SDK version does not know yet; new values are non-breaking API changes.
+/// A `type` this SDK version does not know yet, with its JSON as SYNQT sent it; new values are non-breaking API
+/// changes.
 final class UnknownUserInteraction extends UserInteraction {
-  const UnknownUserInteraction(this.type);
+  const UnknownUserInteraction(this.type, this.json);
 
   @override
   final String type;
+  final Map<String, Object?> json;
 
   @override
   bool operator ==(Object other) => other is UnknownUserInteraction && other.type == type;
@@ -4066,8 +4259,87 @@ final class RedirectInteraction extends UserInteraction {
   factory RedirectInteraction.fromJson(Map<String, Object?> json) => RedirectInteraction(url: json['url'] as String?);
 }
 
+/// How a payin's money was settled to the merchant. Unknown methods read as [UnknownSettlementMethod].
+sealed class SettlementMethod {
+  const SettlementMethod();
+
+  String get paymentMethodCode;
+
+  /// A known `paymentMethodCode` whose fields have unexpected types also reads as [UnknownSettlementMethod], so a response never fails on
+  /// them.
+  factory SettlementMethod.fromJson(Map<String, Object?> json) {
+    final code = switch (json['paymentMethodCode']) {
+      final String value => value,
+      _ => '',
+    };
+    try {
+      return switch (code) {
+        'CRYPTO_TRANSFER' => SettlementCryptoTransferMethod.fromJson(json),
+        _ => UnknownSettlementMethod(code, json),
+      };
+    } on TypeError {
+      return UnknownSettlementMethod(code, json);
+    }
+  }
+}
+
+/// A `paymentMethodCode` this SDK version does not know yet, with its JSON as SYNQT sent it; new values are non-breaking API
+/// changes.
+final class UnknownSettlementMethod extends SettlementMethod {
+  const UnknownSettlementMethod(this.paymentMethodCode, this.json);
+
+  @override
+  final String paymentMethodCode;
+  final Map<String, Object?> json;
+
+  @override
+  bool operator ==(Object other) => other is UnknownSettlementMethod && other.paymentMethodCode == paymentMethodCode;
+
+  @override
+  int get hashCode => paymentMethodCode.hashCode;
+
+  @override
+  String toString() => 'UnknownSettlementMethod($paymentMethodCode)';
+}
+
+/// Payment method for sending funds from your crypto wallet to external crypto wallet. It requires customer to provide a receiving crypto wallet details in format related to chosen blockchain protocol.
+final class SettlementCryptoTransferMethod extends SettlementMethod {
+  const SettlementCryptoTransferMethod({this.account, this.paymentOperatorCode, this.transactionReference});
+
+  /// Parameters of a customer's crypto wallet information where your customer would like his funds to be transferred. Always present per spec.
+  final AccountSettlement? account;
+
+  /// One of following can serve as Payment Operator: min 1, max 30, pattern `^[A-Za-z0-9_-]+$`. Always present per spec.
+  final String? paymentOperatorCode;
+
+  /// Reference number of transaction.
+  final String? transactionReference;
+
+  @override
+  String get paymentMethodCode => 'CRYPTO_TRANSFER';
+
+  factory SettlementCryptoTransferMethod.fromJson(Map<String, Object?> json) => SettlementCryptoTransferMethod(
+    account: _obj(json['account'], AccountSettlement.fromJson),
+    paymentOperatorCode: json['paymentOperatorCode'] as String?,
+    transactionReference: json['transactionReference'] as String?,
+  );
+}
+
+/// The account a settlement is sent to.
+final class AccountSettlement extends Object {
+  const AccountSettlement({this.accountNumber});
+
+  /// Address of a customer's crypto wallet where your customer would like his funds to be transferred. min 1, max 62, pattern `^[a-zA-Z0-9]*$`.
+  final String? accountNumber;
+
+  factory AccountSettlement.fromJson(Map<String, Object?> json) =>
+      AccountSettlement(accountNumber: json['accountNumber'] as String?);
+}
+
 T? _obj<T>(Object? value, T Function(Map<String, Object?>) read) =>
     value == null ? null : read(value as Map<String, Object?>);
+
+String? _text(String? value) => value == null || value.isEmpty ? null : value;
 
 void _check(bool ok, String message) {
   if (!ok) throw SynqtArgumentException(message);

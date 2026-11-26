@@ -1,6 +1,6 @@
 name: synqt
 description: Take SYNQT payins in a Flutter app on iOS and Android, with a Synqt-branded payment sheet that asks the payer only for what their payment method needs.
-version: 0.1.0
+version: 0.3.0
 homepage: https://github.com/synqt-pay/synqt-flutter
 repository: https://github.com/synqt-pay/synqt-flutter
 issue_tracker: https://github.com/synqt-pay/synqt-flutter/issues

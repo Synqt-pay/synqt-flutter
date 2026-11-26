@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -8,7 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:synqt/src/method_forms.dart';
 import 'package:synqt/src/payment_sheet.dart';
-import 'package:synqt/src/results.dart';
 import 'package:synqt/synqt.dart';
 
 // Set SYNQT_SHOTS to a folder to save a PNG of each screen, for checking the layout by eye.
@@ -37,20 +37,20 @@ Future<void> _shot(WidgetTester tester, String name) async {
 }
 
 /// Opens the sheet for [code] from a button, as an app would.
-Future<Future<CreatePayinResult?>> _open(
+Future<Future<PayinAcceptedResponse?>> _open(
   WidgetTester tester,
   String code, {
   Map<String, String> prefill = const {},
-  List<PaymentOperator>? operators = const [],
-  Future<List<PaymentOperator>?> Function()? reloadOperators,
+  List<PaymentOperatorIncoming>? operators = const [],
+  Future<List<PaymentOperatorIncoming>?> Function()? reloadOperators,
   Size size = const Size(1179, 2556),
-  required Future<CreatePayinResult> Function(PaymentMethod) submit,
+  required Future<PayinAcceptedResponse> Function(PaymentMethodPayin) submit,
 }) async {
   tester.view
     ..physicalSize = size
     ..devicePixelRatio = 3;
   addTearDown(tester.view.reset);
-  late Future<CreatePayinResult?> result;
+  late Future<PayinAcceptedResponse?> result;
   await tester.pumpWidget(
     RepaintBoundary(
       key: _frame,
@@ -146,18 +146,19 @@ void main() {
     testWidgets('Pay offline shows how to pay once SYNQT accepts it ($theme)', (tester) async {
       tester.platformDispatcher.platformBrightnessTestValue = dark ? Brightness.dark : Brightness.light;
       addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
-      final accepted = parseCreatePayin(
-        '''
+      final accepted = PayinAcceptedResponse.fromJson(
+        jsonDecode('''
         {"paymentMethodResponse":{"paymentMethodCode":"OFFLINE","reference":"REF123",
            "expireAt":"${DateTime.now().toUtc().add(const Duration(hours: 2)).toIso8601String()}",
-           "account":{"accountName":"Test Payee","accountNumber":"0000000000","bankName":"Test Bank","bankCode":"000000"}}}''',
+           "account":{"accountName":"Test Payee","accountNumber":"0000000000","bankName":"Test Bank","bankCode":"000000"}}}''')
+            as Map<String, Object?>,
       );
-      final reply = Completer<CreatePayinResult>();
+      final reply = Completer<PayinAcceptedResponse>();
       final result = await _open(
         tester,
         'OFFLINE',
         prefill: const {'customerName.firstName': 'Jane', 'customerName.lastName': 'Doe'},
-        operators: const [PaymentOperator(code: 'ZA_TEST', name: 'Test Bank')],
+        operators: const [PaymentOperatorIncoming(code: 'ZA_TEST', name: 'Test Bank')],
         submit: (_) => reply.future,
       );
       expect(find.text('Bank or provider'), findsOneWidget);
@@ -217,7 +218,7 @@ void main() {
   });
 
   testWidgets('a mandatory bank whose list did not load offers Try again, and the dropdown comes back', (tester) async {
-    final reload = Completer<List<PaymentOperator>?>();
+    final reload = Completer<List<PaymentOperatorIncoming>?>();
     await _open(
       tester,
       'OFFLINE',
@@ -240,7 +241,7 @@ void main() {
     await tester.pump();
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.bySemanticsLabel('Try again'), findsOneWidget);
-    reload.complete(const [PaymentOperator(code: 'ZA_TEST', name: 'Test Bank')]);
+    reload.complete(const [PaymentOperatorIncoming(code: 'ZA_TEST', name: 'Test Bank')]);
     await tester.pumpAndSettle();
     expect(find.text('The list of banks could not be loaded. Check the connection and try again.'), findsNothing);
     final bank = tester.widget<SynqtDropdown>(find.byKey(const ValueKey('paymentOperatorCode')));
@@ -249,6 +250,9 @@ void main() {
   });
 
   testWidgets('everything prefilled pays straight away', (tester) async {
+    const redirect = PayinAcceptedRedirectResponse(
+      redirectTo: Redirection(method: 'GET', url: 'https://bank.example.com'),
+    );
     var sent = 0;
     final result = await _open(
       tester,
@@ -260,10 +264,10 @@ void main() {
       },
       submit: (_) async {
         sent++;
-        return const RedirectResult(httpMethod: 'GET', url: 'https://bank.example.com');
+        return redirect;
       },
     );
     expect(sent, 1);
-    expect(await result, const RedirectResult(httpMethod: 'GET', url: 'https://bank.example.com'));
+    expect(await result, same(redirect));
   });
 }

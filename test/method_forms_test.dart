@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:synqt/src/method_form.dart';
 import 'package:synqt/src/method_forms.dart';
+import 'package:synqt/src/payin_models.dart';
 import 'package:synqt/src/payment_methods.dart';
 import 'package:synqt/src/results.dart';
 import 'package:synqt/src/strings.dart';
@@ -237,19 +238,16 @@ void main() {
   });
 
   test('payment operators carry their external providers', () {
-    final ops = parseOperators(
-      (jsonDecodeMap('''
-      {"data":[{"code":"ZA_BANK","name":"A Bank","externalProviders":{"providers":[{"code":"P1","name":"Provider one"},{"name":"no code"}]}},
-         {"code":"ZA_OTHER"},{"name":"no code"}]}'''))['data'],
-    );
-    expect(ops, const [
-      PaymentOperator(
-        code: 'ZA_BANK',
-        name: 'A Bank',
-        externalProviders: [ExternalProvider(code: 'P1', name: 'Provider one')],
+    final op = PaymentOperatorIncoming.fromJson(
+      jsonDecodeMap(
+        '{"code":"ZA_BANK","name":"A Bank","externalProviders":{"providers":[{"code":"P1","name":"Provider one"},{"name":"no code"}]}}',
       ),
-      PaymentOperator(code: 'ZA_OTHER', name: 'ZA_OTHER'),
-    ]);
+    );
+    expect(op.code, 'ZA_BANK');
+    expect(op.name, 'A Bank');
+    expect(op.externalProviders?.providers?.map((provider) => provider.name), ['Provider one', 'no code']);
+    // The sheet skips providers without a code.
+    expect(providers([op]).map((provider) => provider.code), ['P1']);
   });
 
   test('providers list every bank\'s providers once', () {
@@ -258,12 +256,22 @@ void main() {
     const p2 = ExternalProvider(code: 'SHYFT', name: 'Shyft');
     const p3 = ExternalProvider(code: 'CAPITEC', name: 'CAPITEC');
     const banks = [
-      PaymentOperator(code: 'ZA_STANDARD', name: 'Standard Bank', externalProviders: [p1, p2]),
-      PaymentOperator(code: 'ZA_CAPITEC', name: 'Capitec', externalProviders: [p3, p1]),
-      PaymentOperator(
+      PaymentOperatorIncoming(
+        code: 'ZA_STANDARD',
+        name: 'Standard Bank',
+        externalProviders: ExternalProviders(providers: [p1, p2]),
+      ),
+      PaymentOperatorIncoming(
+        code: 'ZA_CAPITEC',
+        name: 'Capitec',
+        externalProviders: ExternalProviders(providers: [p3, p1]),
+      ),
+      PaymentOperatorIncoming(
         code: 'NG_BANK',
         name: 'Another market',
-        externalProviders: [ExternalProvider(code: 'NG_P', name: 'x')],
+        externalProviders: ExternalProviders(
+          providers: [ExternalProvider(code: 'NG_P', name: 'x')],
+        ),
       ),
     ];
     expect(providers(banks), [p1, p2, p3, const ExternalProvider(code: 'NG_P', name: 'x')]);
@@ -290,22 +298,16 @@ void main() {
   });
 
   test('payment options carry operators and payer-facing names', () {
-    final options = parsePaymentOptions(
+    final options = AvailablePayinOptionList.fromJson(
       jsonDecodeMap('''
       {"data":[{"paymentMethodCode":"FPX","paymentOperators":[{"code":"MBB","name":"Maybank"},{"code":"X"}]},
          {"paymentMethodCode":"BRAND_NEW","segmentCode":"S1"}]}'''),
-    );
-    expect(
-      options[0],
-      const PaymentOption(
-        code: 'FPX',
-        operators: [
-          PaymentOperator(code: 'MBB', name: 'Maybank'),
-          PaymentOperator(code: 'X', name: 'X'),
-        ],
-      ),
-    );
-    expect(options[1], const PaymentOption(code: 'BRAND_NEW', segmentCode: 'S1'));
+    ).data!;
+    expect(options[0].paymentMethodCode, 'FPX');
+    expect(options[0].paymentOperators?.map((op) => (op.code, op.name)), [('MBB', 'Maybank'), ('X', null)]);
+    expect(options[1].paymentMethodCode, 'BRAND_NEW');
+    expect(options[1].paymentOperators, isNull);
+    expect(options[1].segmentCode, 'S1');
     expect(options[0].name, 'FPX online banking');
     expect(options[1].name, isNull); // the sheet cannot show it, so it has no payer-facing name
   });

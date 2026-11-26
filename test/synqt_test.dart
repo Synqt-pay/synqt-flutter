@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:synqt/src/method_forms.dart';
-import 'package:synqt/src/payin.dart' show SheetPayin;
+import 'package:synqt/src/payin_checkout.dart' show SheetCheckout;
 import 'package:synqt/src/payment_app.dart';
 import 'package:synqt/src/payment_sheet_model.dart';
 import 'package:synqt/src/method_form.dart';
@@ -14,12 +14,20 @@ import 'package:synqt/src/strings.dart';
 import 'package:synqt/src/ui/widgets.dart';
 import 'package:synqt/synqt.dart';
 
-Payin payin([String id = 'order-1', http.Client? client]) => Synqt(SynqtEnvironment.sandbox, client: client).payin(
-  token: 'a.b+c',
-  payinId: id,
-  money: Money(amount: '12.30', currencyCode: 'ZAR'),
+const money = MoneyPaymentRequested(amount: 12.30, currencyCode: 'ZAR');
+
+PayinCheckout checkout([String id = 'order-1', http.Client? client]) => Synqt(
+  SynqtEnvironment.sandbox,
+  client: client,
+).checkout(token: 'a.b+c', payinId: id, money: money, returnUrl: 'https://x.io/return', callbackUrl: 'https://x.io/cb');
+
+IncomingPaymentsApi api(http.Client client) =>
+    IncomingPaymentsApi.create(Synqt(SynqtEnvironment.sandbox, client: client), 'a.b+c');
+
+const capitec = Payin(
+  paymentRequested: PaymentRequested(money: money),
+  paymentMethod: CapitecPayMethod(phoneNumber: '0821234567'),
   returnUrl: 'https://x.io/return',
-  callbackUrl: 'https://x.io/cb',
 );
 
 Map<String, Object?> json(String text) => jsonDecode(text) as Map<String, Object?>;
@@ -27,14 +35,14 @@ Map<String, Object?> json(String text) => jsonDecode(text) as Map<String, Object
 void main() {
   test('payment app url encodes params', () {
     expect(
-      payin().paymentAppUrl(merchantCode: 'MID', extra: {'emailAddress': 'a@b.co'}),
+      checkout().paymentAppUrl(merchantCode: 'MID', extra: {'emailAddress': 'a@b.co'}),
       'https://payment.sandbox.synqt.io/?merchantCode=MID&idPayin=order-1&token=a.b%2Bc&amount=12.3'
       '&currencyCode=ZAR&callbackUrl=https%3A%2F%2Fx.io%2Fcb&returnUrl=https%3A%2F%2Fx.io%2Freturn&emailAddress=a%40b.co',
     );
   });
 
   test('payment app offers a method and editable prefill', () {
-    final url = payin().paymentAppUrl(
+    final url = checkout().paymentAppUrl(
       merchantCode: 'MID',
       paymentMethodCode: 'CAPITEC_PAY',
       prefill: {'phoneNumber': '+27821234567'},
@@ -45,41 +53,81 @@ void main() {
         '&paymentMethodCode=CAPITEC_PAY&optionsAvailable=true&phoneNumber=%2B27821234567&allowCustomerDataChange=true',
       ),
     );
-    expect(payin().paymentAppUrl(merchantCode: 'MID'), isNot(contains('optionsAvailable')));
+    expect(checkout().paymentAppUrl(merchantCode: 'MID'), isNot(contains('optionsAvailable')));
   });
 
-  test('rejects an unsafe payin ID and a malformed amount', () {
-    expect(() => payin('../x'), throwsA(isA<SynqtArgumentException>()));
-    expect(() => Money(amount: '12,30', currencyCode: 'ZAR'), throwsA(isA<SynqtArgumentException>()));
-  });
-
-  test('parses a redirect', () {
+  test('rejects an unsafe payin ID', () {
+    expect(() => checkout('../x'), throwsA(isA<SynqtArgumentException>()));
     expect(
-      parseCreatePayin(r'{"redirectTo":{"method":"POST","url":"https://p.io","data":"{\"k\":\"v\",\"n\":1}"}}'),
-      const RedirectResult(httpMethod: 'POST', url: 'https://p.io', formData: {'k': 'v', 'n': '1'}),
+      () => api(MockClient((_) async => http.Response('{}', 200))).getPayin('../x'),
+      throwsA(isA<SynqtArgumentException>()),
     );
   });
 
-  test('parses status', () {
-    final status = parsePayinStatus(
+  test('a payin request has the Java SDK\'s shape', () {
+    const payin = Payin(
+      paymentRequested: PaymentRequested(money: money, segmentCode: 'S1'),
+      paymentMethod: CapitecPayMethod(phoneNumber: '0821234567'),
+      returnUrl: 'https://x.io/return',
+      customerIp: '10.0.0.1',
+    );
+    final body = payin.toJson();
+    // callbackUrl is optional
+    expect(body.keys.toSet(), {'paymentRequested', 'paymentMethod', 'returnUrl', 'customerIp'});
+    expect(jsonDecode(jsonEncode(body)), {
+      'paymentRequested': {
+        'money': {'amount': 12.3, 'currencyCode': 'ZAR'},
+        'segmentCode': 'S1',
+      },
+      'paymentMethod': {'paymentMethodCode': 'CAPITEC_PAY', 'phoneNumber': '0821234567'},
+      'returnUrl': 'https://x.io/return',
+      'customerIp': '10.0.0.1',
+    });
+  });
+
+  test('the accepted response is chosen by the field SYNQT sent', () {
+    final redirect = PayinAcceptedResponse.fromJson(
+      json(r'''
+      {"paymentRequested":{"money":{"amount":12.3,"currencyCode":"ZAR"}},
+       "redirectTo":{"method":"POST","url":"https://p.io","data":"{\"k\":\"v\",\"n\":1}"}}'''),
+    );
+    expect(redirect, isA<PayinAcceptedRedirectResponse>());
+    expect((redirect as PayinAcceptedRedirectResponse).paymentRequested?.money.currencyCode, 'ZAR');
+    expect(redirect.redirect()?.formData(), {'k': 'v', 'n': '1'});
+    expect(redirect.nextStep(), isNull);
+
+    final method = PayinAcceptedResponse.fromJson(
+      json('{"paymentMethodResponse":{"paymentMethodCode":"PAYSHAP","reference":"REF1"}}'),
+    );
+    expect(((method as PayinAcceptedMethodResponse).paymentMethodResponse as PayShapMethodResponse).reference, 'REF1');
+    expect(method.nextStep()?.reference, 'REF1');
+    expect(method.redirect(), isNull);
+    expect(() => PayinAcceptedResponse.fromJson(const {}), throwsFormatException);
+  });
+
+  test('parses a payin detail', () {
+    final detail = PayinDetail.fromJson(
       json('''
       {"paymentRequested":{"money":{"amount":100.50,"currencyCode":"ZAR"}},"fee":{"amount":2,"currencyCode":"ZAR"},
        "process":{"status":"FAILED","isTest":true,"createdAt":"2026-10-26T10:00:00Z",
          "failureReasons":{"failureReasonCode":"ENTITY_EXPIRED","message":"Expired","failedAt":"2026-10-26T12:00:00Z"}},
-       "paymentMethodResponse":{"paymentMethodCode":"CAPITEC_PAY"}}'''),
+       "paymentMethodResponse":{"paymentMethodCode":"CAPITEC_PAY"},
+       "settlement":{"paymentMethodCode":"CRYPTO_TRANSFER","paymentOperatorCode":"OP","account":{"accountNumber":"A1"}},
+       "customer":{"idCustomer":"C1"}}'''),
     );
-    expect(status.status, PayinState.failed);
-    expect(status.status.isFinal && status.isTest, isTrue);
-    expect(status.requested, Money(amount: '100.5', currencyCode: 'ZAR'));
-    expect(status.fee, Money(amount: '2', currencyCode: 'ZAR'));
-    expect(status.failureReason?.code, 'ENTITY_EXPIRED');
-    expect(status.paymentMethod, isA<CapitecPayResponse>());
+    expect(detail.process?.status, PaymentStatus.failed);
+    expect(detail.isFinal && detail.process?.isTest == true, isTrue);
+    expect(detail.paymentRequested?.money.amount, 100.5);
+    expect(detail.fee?.amount, 2);
+    expect(detail.process?.failureReasons?.failureReasonCode, 'ENTITY_EXPIRED');
+    expect(detail.process?.failureReasons?.payerMessage, text('synqt_failure_expired'));
+    expect(detail.paymentMethodResponse, isA<CapitecPayMethodResponse>());
+    expect((detail.settlement as SettlementCryptoTransferMethod).paymentOperatorCode, 'OP');
+    expect(detail.customer?.idCustomer, 'C1');
   });
 
   test('unknown status is not final', () {
-    final status = parsePayinStatus(json('{"process":{"status":"ON_HOLD"}}'));
-    expect(status.status, PayinState.unknown);
-    expect(status.status.isFinal, isFalse);
+    expect(PayinDetail.fromJson(json('{"process":{"status":"ON_HOLD"}}')).isFinal, isFalse);
   });
 
   test('rand uses the house format', () {
@@ -87,7 +135,9 @@ void main() {
     expect(formatMoney('1250.5', 'USD'), 'USD 1,250.50');
     expect(formatMoney('0.00012345', 'BTC'), 'BTC 0.00012345'); // real decimals are never rounded away
     expect(formatMoney('1234567.10', 'ZAR'), 'R1,234,567.10');
-    expect(Money(amount: '1250.00', currencyCode: 'ZAR').toString(), 'R1,250.00');
+    expect(const MoneyPaymentRequested(amount: 1250.00, currencyCode: 'ZAR').format(), 'R1,250.00');
+    expect(const MoneyResponse(amount: 0.5, currencyCode: 'USD').format(), 'USD 0.50');
+    expect(const MoneyResponse(currencyCode: 'USD').format(), isNull);
   });
 
   test('errors keep code and field but never the value', () {
@@ -122,17 +172,14 @@ void main() {
 
   test('returnUrl must be https', () {
     final synqt = Synqt(SynqtEnvironment.sandbox);
-    Payin make(String returnUrl) => synqt.payin(
-      token: 'a.b+c',
-      payinId: 'order-1',
-      money: Money(amount: '12.30', currencyCode: 'ZAR'),
-      returnUrl: returnUrl,
-      callbackUrl: 'https://x.io/cb',
-    );
+    PayinCheckout make(String returnUrl) =>
+        synqt.checkout(token: 'a.b+c', payinId: 'order-1', money: money, returnUrl: returnUrl);
     for (final bad in ['http://x.io/return', 'myapp://return', 'x.io/return', '']) {
       expect(() => make(bad), throwsA(isA<SynqtArgumentException>()), reason: bad);
     }
-    expect(make('https://x.io/return'), isA<Payin>());
+    expect(make('https://x.io/return'), isA<PayinCheckout>());
+    // Without a callbackUrl, the Payment Web App link leaves it out.
+    expect(make('https://x.io/return').paymentAppUrl(merchantCode: 'MID'), isNot(contains('callbackUrl')));
   });
 
   test('sheet messages for other errors', () {
@@ -180,7 +227,7 @@ void main() {
   PaymentSheetModel sheet(
     String code,
     Map<String, String> prefill, {
-    required Future<CreatePayinResult> Function(PaymentMethod) submit,
+    required Future<PayinAcceptedResponse> Function(PaymentMethodPayin) submit,
   }) => PaymentSheetModel(
     form: methodForms.firstWhere((form) => form.code == code),
     prefill: prefill,
@@ -274,11 +321,11 @@ void main() {
 
   test('closing after SYNQT accepted the payment returns that result', () async {
     const all = {'emailAddress': 'test@example.com', 'customerName.firstName': 'Jane', 'customerName.lastName': 'Doe'};
-    final accepted = parseCreatePayin(
-      '{"paymentMethodResponse":{"paymentMethodCode":"ZAPPER_QR","qrCode":"https://example.com/qr.png"}}',
+    final accepted = PayinAcceptedResponse.fromJson(
+      json('{"paymentMethodResponse":{"paymentMethodCode":"ZAPPER_QR","qrCode":"https://example.com/qr.png"}}'),
     );
     final model = sheet('ZAPPER_QR', all, submit: (_) async => accepted);
-    final results = <CreatePayinResult?>[];
+    final results = <PayinAcceptedResponse?>[];
     model
       ..onFinish = results.add
       ..start();
@@ -322,47 +369,121 @@ void main() {
   });
 
   group('over HTTP', () {
-    test('create sends the method with SYNQT headers', () async {
+    test('createPayin posts the payin with SYNQT headers and returns what SYNQT accepted', () async {
       late http.Request sent;
       final client = MockClient((request) async {
         sent = request;
-        return http.Response('{"paymentMethodResponse":{"paymentMethodCode":"CAPITEC_PAY","reference":"R1"}}', 200);
+        return http.Response(
+          '{"paymentRequested":{"money":{"amount":12.3,"currencyCode":"ZAR"}},'
+          '"paymentMethodResponse":{"paymentMethodCode":"CAPITEC_PAY","reference":"R1"}}',
+          201,
+        );
       });
-      final result = await payin('order-1', client).create(
-        const CapitecPayMethod(
+      const payin = Payin(
+        paymentRequested: PaymentRequested(money: money),
+        paymentMethod: CapitecPayMethod(
           phoneNumber: '0821234567',
           customerName: PersonName(lastName: 'Doe'),
         ),
+        returnUrl: 'https://x.io/return',
+        callbackUrl: 'https://x.io/cb',
       );
+      final accepted = await api(client).createPayin('order-1', payin);
       expect(sent.method, 'POST');
       expect(sent.url.toString(), 'https://api.sandbox.synqt.io/payins/order-1');
       expect(sent.headers['X-API-Version'], '2');
       expect(sent.headers['Authorization'], 'Bearer a.b+c');
-      expect(json(sent.body)['paymentRequested'], {
-        'money': {'amount': 12.3, 'currencyCode': 'ZAR'},
-      });
-      expect((json(sent.body)['paymentMethod'] as Map)['paymentMethodCode'], 'CAPITEC_PAY');
+      expect(json(sent.body), jsonDecode(jsonEncode(payin.toJson())));
       expect(json(sent.body).containsKey('customerIp'), isFalse);
-      expect(((result as InstructionsResult).paymentMethod as CapitecPayResponse).reference, 'R1');
+      final method = (accepted as PayinAcceptedMethodResponse).paymentMethodResponse;
+      expect((method as CapitecPayMethodResponse).reference, 'R1');
     });
 
-    test('a 409 retry fetches the existing payin, but only for the same method', () async {
+    test('createPayin checks the request before sending', () async {
+      var requests = 0;
+      final client = MockClient((_) async {
+        requests++;
+        return http.Response('{}', 200);
+      });
+      const insecure = Payin(
+        paymentRequested: PaymentRequested(money: money),
+        paymentMethod: CapitecPayMethod(phoneNumber: '0821234567'),
+        returnUrl: 'http://x.io/return',
+      );
+      await expectLater(api(client).createPayin('order-1', insecure), throwsA(isA<SynqtArgumentException>()));
+      await expectLater(api(client).createPayin('../x', capitec), throwsA(isA<SynqtArgumentException>()));
+      expect(requests, 0);
+    });
+
+    test('a retry of the same payin returns the existing one', () async {
+      final sent = <String>[];
+      final client = MockClient((request) async {
+        sent.add('${request.method} ${request.url.path}');
+        return request.method == 'POST'
+            ? http.Response('[]', 409)
+            : http.Response(
+                '{"paymentRequested":{"money":{"amount":12.3,"currencyCode":"ZAR"}},'
+                '"paymentMethodResponse":{"paymentMethodCode":"CAPITEC_PAY","reference":"R1"}}',
+                200,
+              );
+      });
+      final accepted = await api(client).createPayin('order-1', capitec);
+      expect(accepted.nextStep()?.reference, 'R1');
+      expect(sent, ['POST /payins/order-1', 'GET /payins/order-1']);
+    });
+
+    test('a retry with another method is refused', () async {
       final client = MockClient(
         (request) async => request.method == 'POST'
             ? http.Response('[{"code":"PAYIN_ALREADY_EXISTS"}]', 409)
-            : http.Response('{"paymentMethodResponse":{"paymentMethodCode":"CAPITEC_PAY"}}', 200),
+            : http.Response('{"paymentMethodResponse":{"paymentMethodCode":"FNB_DIRECT_EFT"}}', 200),
       );
-      final started = payin('order-1', client);
-      expect(await started.create(const CapitecPayMethod(phoneNumber: '0821234567')), isA<InstructionsResult>());
       await expectLater(
-        started.create(
-          const ZapperQrMethod(
-            emailAddress: 'a@b.co',
-            customerName: PersonName(firstName: 'A', lastName: 'B'),
-          ),
+        api(client).createPayin('order-1', capitec),
+        throwsA(
+          isA<SynqtApiException>()
+              .having((error) => error.httpCode, 'httpCode', 409)
+              .having((error) => error.errors.single.code, 'code', 'PAYIN_ALREADY_STARTED'),
         ),
-        throwsA(isA<SynqtApiException>().having((error) => error.errors.single.code, 'code', 'PAYIN_ALREADY_STARTED')),
       );
+    });
+
+    test('a refusal keeps its codes but not what the payer typed', () async {
+      final client = MockClient(
+        (_) async => http.Response(
+          '[{"code":"INVALID_PHONE_NUMBER","attrCode":"phoneNumber","attrValue":"0821234567","description":"bad"}]',
+          406,
+        ),
+      );
+      final error = await api(client)
+          .createPayin('order-1', capitec)
+          .then<SynqtApiException?>((_) => null, onError: (Object error) => error as SynqtApiException);
+      expect(error?.errors, [
+        const SynqtErrorReason(code: 'INVALID_PHONE_NUMBER', field: 'phoneNumber', description: 'bad'),
+      ]);
+      expect(error.toString(), isNot(contains('0821234567')));
+    });
+
+    test('the other calls go to SYNQT\'s payin endpoints', () async {
+      final sent = <String>[];
+      final client = MockClient((request) async {
+        sent.add('${request.method} ${request.url.path} ${request.body}');
+        return http.Response(switch (request.url.path) {
+          '/payins/order-1' => '{"process":{"status":"SUCCESS"}}',
+          '/payins/order-1/accounts' => '{"customerAccountRequest":{"accountNumber":"0000000000"}}',
+          _ => '{}',
+        }, 200);
+      });
+      final synqtApi = api(client);
+      expect((await synqtApi.getPayin('order-1')).isFinal, isTrue);
+      expect((await synqtApi.getPayinAccounts('order-1')).customerAccountRequest?.accountNumber, '0000000000');
+      await synqtApi.setPayinExternalReference('order-1', 'UTR1');
+      expect(sent, [
+        'GET /payins/order-1 ',
+        'GET /payins/order-1/accounts ',
+        'POST /payins/order-1/!setExternalReference {"reference":"UTR1"}',
+      ]);
+      expect(() => synqtApi.setPayinExternalReference('order-1', ''), throwsA(isA<SynqtArgumentException>()));
     });
 
     test('a refusal keeps its codes and a UTF-8 body reads correctly without a charset', () async {
@@ -377,17 +498,18 @@ void main() {
               )
             : http.Response('{"code":"TOKEN_EXPIRED"}', 401),
       );
-      final started = payin('order-1', client);
-      expect((await started.availablePaymentOptions()).single.operators.single.name, 'Banco Ñ');
+      final options = await api(client).payinAvailablePaymentOptions(const PaymentRequested(money: money));
+      expect(options.data!.single.paymentOperators!.single.name, 'Banco Ñ');
+      expect(options.data!.single.name, 'PayShap');
       await expectLater(
-        started.status(),
+        api(client).getPayin('order-1'),
         throwsA(isA<SynqtApiException>().having((error) => error.httpCode, 'httpCode', 401)),
       );
     });
 
     group('the sheet\'s bank list', () {
       // Answers each request with the next status (the last repeats) and counts the requests.
-      Future<(List<PaymentOperator>?, int)> load(List<int> statuses) async {
+      Future<(List<PaymentOperatorIncoming>?, int)> load(List<int> statuses) async {
         var requests = 0;
         final client = MockClient((request) async {
           final status = statuses[requests < statuses.length ? requests : statuses.length - 1];
@@ -400,7 +522,7 @@ void main() {
           );
         });
         final form = methodForms.firstWhere((form) => form.code == 'OFFLINE');
-        final loaded = await payin('order-1', client).sheetOperators(form, retryAfter: Duration.zero);
+        final loaded = await checkout('order-1', client).sheetOperators(form, retryAfter: Duration.zero);
         return (loaded, requests);
       }
 
@@ -428,7 +550,7 @@ void main() {
           (_) async => ++requests < 3 ? throw http.ClientException('offline') : http.Response('{"data":[]}', 200),
         );
         final form = methodForms.firstWhere((form) => form.code == 'OFFLINE');
-        expect(await payin('order-1', client).sheetOperators(form, retryAfter: Duration.zero), isEmpty);
+        expect(await checkout('order-1', client).sheetOperators(form, retryAfter: Duration.zero), isEmpty);
         expect(requests, 3);
       });
     });

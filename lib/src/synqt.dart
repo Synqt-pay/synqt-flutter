@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'addon.dart';
+import 'incoming_payments_api.dart';
 import 'method_forms.dart';
-import 'payin.dart';
+import 'payin_checkout.dart';
+import 'payin_models.dart';
 import 'results.dart';
 
 /// Where each SYNQT environment lives. The base URLs are public for backend calls such as minting tokens.
@@ -21,15 +23,16 @@ enum SynqtEnvironment {
   final String paymentAppBaseUrl;
 }
 
-final _payinId = RegExp(r'^[A-Za-z0-9_-]+$');
-
-/// Entry point of the SYNQT payins SDK. Create one per environment, then one [Payin] per order:
+/// Entry point of the SYNQT payins SDK. Create one per environment. For the ready-made payment sheet or Payment Web
+/// App, make one [PayinCheckout] per order:
 ///
 /// ```dart
-/// final payin = Synqt(SynqtEnvironment.sandbox).payin(token: token, payinId: payinId,
-///     money: Money(amount: '100.00', currencyCode: 'ZAR'), returnUrl: returnUrl, callbackUrl: callbackUrl);
-/// final result = await payin.presentPaymentSheet(context, paymentMethodCode: 'CAPITEC_PAY');
+/// final checkout = Synqt(SynqtEnvironment.sandbox).checkout(token: token, payinId: payinId,
+///     money: MoneyPaymentRequested(amount: 100, currencyCode: 'ZAR'), returnUrl: returnUrl, callbackUrl: callbackUrl);
+/// final accepted = await checkout.presentPaymentSheet(context, paymentMethodCode: 'CAPITEC_PAY');
 /// ```
+///
+/// To call the API yourself, as with the Carpentum Java SDK, use [IncomingPaymentsApi.create].
 ///
 /// The token is minted per order by YOUR backend (POST /auth-tokens-by-action, action PAYIN_CREATE, with `money` set).
 /// The merchant private key and Secret key must never ship in the app. A payment is only paid when your backend's own
@@ -41,37 +44,46 @@ final class Synqt {
   final SynqtEnvironment environment;
   final http.Client _client;
 
-  /// Methods `Payin.presentPaymentSheet` can collect details for. Offer only those `Payin.availablePaymentOptions`
-  /// also returns.
+  /// Methods `PayinCheckout.presentPaymentSheet` can collect details for. Offer only those
+  /// `IncomingPaymentsApi.payinAvailablePaymentOptions` also returns.
   static List<DirectPaymentMethod> get directPaymentMethods => [
     for (final form in methodForms) DirectPaymentMethod(form.code),
     for (final method in addonMethods) DirectPaymentMethod(method.code),
   ];
 
-  /// One order's payin. [payinId] is your own ID for it (letters, digits, `_` and `-`, at most 250) and must match the
-  /// token. [returnUrl] must be https: the Payment Web App rejects other schemes. Throws [SynqtArgumentException] for
-  /// a malformed ID or a [returnUrl] that is not https.
-  Payin payin({
+  /// One order's payin for the payment sheet or Payment Web App. [payinId] is your own ID for it (letters, digits, `_`
+  /// and `-`, at most 250) and must match the token. [returnUrl] must be https: the Payment Web App rejects other
+  /// schemes. [callbackUrl] is where SYNQT sends your backend the final status. Throws [SynqtArgumentException] for a
+  /// malformed ID or a [returnUrl] that is not https.
+  PayinCheckout checkout({
     required String token,
     required String payinId,
-    required Money money,
+    required MoneyPaymentRequested money,
     required String returnUrl,
-    required String callbackUrl,
+    String? callbackUrl,
   }) {
-    if (payinId.length > 250 || !_payinId.hasMatch(payinId)) {
-      throw const SynqtArgumentException(r'payinId must match ^[A-Za-z0-9_-]+$, max 250');
-    }
-    if (Uri.tryParse(returnUrl)?.scheme != 'https') throw const SynqtArgumentException('returnUrl must be https');
-    return newPayin(this, token: token, id: payinId, money: money, returnUrl: returnUrl, callbackUrl: callbackUrl);
+    requirePayinId(payinId);
+    requireHttps(returnUrl);
+    return newPayinCheckout(
+      this,
+      token: token,
+      id: payinId,
+      money: money,
+      returnUrl: returnUrl,
+      callbackUrl: callbackUrl,
+    );
   }
 
   /// Every bank and provider SYNQT knows, with the providers behind each. SYNQT may add codes at any time, so treat
-  /// unknown ones as normal. For what this merchant can use on a payin, use `Payin.availablePaymentOptions` instead.
+  /// unknown ones as normal. For what this merchant can use on a payin, use
+  /// `IncomingPaymentsApi.payinAvailablePaymentOptions` instead.
   ///
   /// [token] must allow `GET /payment-operators`. PAYIN_CREATE tokens do not, so mint one on your backend with
   /// `POST /auth-tokens` and that operation.
-  Future<List<PaymentOperator>> paymentOperators({required String token}) async =>
-      parseOperators(jsonMap(jsonDecode(await _call('GET', '/payment-operators', token)))?['data']);
+  Future<List<PaymentOperatorIncoming>> paymentOperators({required String token}) async {
+    final data = jsonMap(jsonDecode(await _call('GET', '/payment-operators', token)))?['data'];
+    return [if (data is List) ...data.whereType<Map<String, Object?>>().map(PaymentOperatorIncoming.fromJson)];
+  }
 
   /// One API call; the response body as text. Throws [SynqtApiException] when SYNQT refuses it.
   Future<String> _call(String method, String path, String token, [Object? body]) async {
@@ -96,6 +108,6 @@ final class Synqt {
   }
 }
 
-/// [Synqt]'s one API call, for [Payin]. Not exported: it returns raw bodies, which can hold what the payer typed.
+/// [Synqt]'s one API call, for [IncomingPaymentsApi] and [PayinCheckout]. Not exported: it returns raw bodies, which can hold what the payer typed.
 Future<String> synqtCall(Synqt synqt, String method, String path, String token, [Object? body]) =>
     synqt._call(method, path, token, body);

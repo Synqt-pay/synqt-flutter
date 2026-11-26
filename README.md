@@ -27,7 +27,7 @@ or add it to your `pubspec.yaml` yourself and run `flutter pub get`:
 
 ```yaml
 dependencies:
-  synqt: ^0.1.0
+  synqt: ^0.3.0
 ```
 
 To upgrade, run `flutter pub upgrade synqt`. The SDK brings its own fonts, strings and icons. On Android, make sure your app's main `AndroidManifest.xml` (not only the debug one) has `<uses-permission android:name="android.permission.INTERNET"/>`. Nothing goes in your iOS `Info.plist`.
@@ -38,28 +38,31 @@ Apps that ship the SDK must include the Phosphor Icons MIT notice and the Instru
 
 This is the same for every SYNQT SDK. In short: your backend creates a payin ID that is new for this attempt (letters, digits, `_` and `-`, at most 250 characters), calls `POST /auth-tokens-by-action` with action `PAYIN_CREATE` and the order's `money`, signed with the merchant's private key in `X-SIGNATURE`, and returns the token, payin ID and amount to the app. The SYNQT examples repo's `scripts/sandbox-token.sh` is a working example of the signing. Never return a token with wildcard operations to an app.
 
-### 3. Create the payin in the app
+### 3. Create the checkout in the app
 
 ```dart
 import 'package:synqt/synqt.dart';
 
-final payin = Synqt(SynqtEnvironment.sandbox).payin(
+final synqt = Synqt(SynqtEnvironment.sandbox);
+const money = MoneyPaymentRequested(amount: 1250.00, currencyCode: 'ZAR'); // the same amount and currency as the token
+final checkout = synqt.checkout(
   token: response.token,
   payinId: response.payinId,
-  money: Money(amount: '1250.00', currencyCode: 'ZAR'), // the same amount and currency as the token
+  money: money,
   returnUrl: 'https://shop.example.com/payment/return', // https, see "Other ways to pay"
   callbackUrl: 'https://shop.example.com/synqt/callback', // your backend, step 7
 );
+final api = IncomingPaymentsApi.create(synqt, response.token); // the API, for steps 4 and 6
 ```
 
-This makes no network call. `payin()` throws `SynqtArgumentException` if the payin ID is malformed, and `Money(...)` throws it if the amount isn't decimal text. The amount is kept as text; it goes through a `double` only when written into the JSON request, which is exact to 15 significant digits. Use `SynqtEnvironment.sandbox` while testing and `.live` for real payments.
+This makes no network call. `checkout()` throws `SynqtArgumentException` if the payin ID is malformed or the `returnUrl` isn't https. The amount is a `num`, as SYNQT's spec types it; JSON carries it as a number, exact to 15 significant digits. Use `SynqtEnvironment.sandbox` while testing and `.live` for real payments.
 
 ### 4. Choose the payment method
 
 ```dart
-final offered = await payin.availablePaymentOptions();
+final offered = (await api.payinAvailablePaymentOptions(const PaymentRequested(money: money))).data ?? [];
 final supported = Synqt.directPaymentMethods.map((m) => m.code).toSet();
-final choices = offered.where((o) => supported.contains(o.code)).toList();
+final choices = offered.where((o) => supported.contains(o.paymentMethodCode)).toList();
 ```
 
 Show `choices` in your own checkout, using `option.name` as the payer-facing name. If your checkout only offers one method, skip this and pass its code, such as `'CAPITEC_PAY'`, in step 5.
@@ -67,7 +70,7 @@ Show `choices` in your own checkout, using `option.name` as the payer-facing nam
 ### 5. Show the payment sheet
 
 ```dart
-final result = await payin.presentPaymentSheet(
+final accepted = await checkout.presentPaymentSheet(
   context,
   paymentMethodCode: methodCode,
   prefill: {
@@ -78,36 +81,39 @@ final result = await payin.presentPaymentSheet(
   onPresented: () { /* the sheet is on screen */ },
   onPaymentStarted: () { /* details sent to SYNQT: start showing progress, step 6 */ },
 );
-switch (result) {
-  case null: break;                  // the payer closed the sheet without paying
-  case InstructionsResult(): break;  // the sheet already showed the next step; go to step 6
-  case RedirectResult(:final httpMethod, :final url, :final formData): break; // open url, see below
+final redirect = accepted?.redirect();
+if (accepted == null) {
+  // the payer closed the sheet without paying
+} else if (redirect != null) {
+  // open redirect.url, see below
+} else {
+  // the sheet already showed the next step; go to step 6
 }
 ```
 
 Pass in `prefill` whatever your app already knows about the payer. The sheet hides those fields, and pays straight away when nothing mandatory is left to ask. See [The payment sheet](#the-payment-sheet).
 
-A `RedirectResult` means the payer finishes on a bank's page. For `httpMethod` GET, open `url` with `url_launcher` or a web view. For POST, submit `formData` to it as an HTML form, for example by loading a self-submitting form into a `WebViewController` with `loadHtmlString`.
+The sheet returns SYNQT's `PayinAcceptedResponse`. When `redirect()` gives a `Redirection`, the payer finishes on a bank's page (or a card's 3-D Secure page). For `method` GET, open `url` with `url_launcher` or a web view. For POST, submit `redirect.formData()` to it as an HTML form, for example by loading a self-submitting form into a `WebViewController` with `loadHtmlString`.
 
 To skip the sheet and use SYNQT's hosted Payment Web App instead, call `presentPaymentApp` here; see [Other ways to pay](#other-ways-to-pay).
 
 ### 6. Show the payer where the payment stands
 
-Once `onPaymentStarted` has run (or the Payment Web App has opened), poll `payin.status()` every few seconds until it is final:
+Once `onPaymentStarted` has run (or the Payment Web App has opened), poll `api.getPayin(payinId)` every few seconds until it is final:
 
 ```dart
-final s = await payin.status();
-switch (s.status) {
-  case PayinState.success:
+final detail = await api.getPayin(response.payinId);
+switch (detail.process?.status) {
+  case PaymentStatus.success:
     showPaid(); // fulfil only from step 7
-  case PayinState.failed || PayinState.refused:
-    showError(s.failureReason?.payerMessage);
-  case PayinState.processing || PayinState.unknown:
-    break; // keep polling
+  case PaymentStatus.failed || PaymentStatus.refused:
+    showError(detail.process?.failureReasons?.payerMessage);
+  default:
+    break; // PROCESSING, or a status SYNQT adds later: keep polling
 }
 ```
 
-Stop polling when the payer leaves the screen or `s.status.isFinal` is true. Before the payment is created, `status()` throws `SynqtApiException` with HTTP 410.
+`detail.isFinal` says whether to stop. Stop polling when the payer leaves the screen too. Before the payment is created, `getPayin` throws `SynqtApiException` with HTTP 410.
 
 ### 7. Confirm the payment on your backend
 
@@ -131,21 +137,27 @@ What the app hears from the sheet, in order: `onPresented` once it is on screen 
 
 ## Other ways to pay
 
-**Build the payment method yourself.** Every method is a subclass of the sealed `PaymentMethod`, named after the spec's schema (`CapitecPayMethod`, `ZapperQrMethod` and the rest), and its required fields are required parameters. Types several methods use, such as `Account` and `PersonName`, are shared, so `create` checks the parts the method needs before sending and throws `SynqtArgumentException` naming the missing or unexpected field:
+**Call the API yourself.** `IncomingPaymentsApi` works like the Carpentum Java SDK's: one instance per token, `createPayin(idPayin, payin)` with the whole request, and SYNQT's full response back. Every method is a subclass of the sealed `PaymentMethodPayin`, named after the spec's schema (`CapitecPayMethod`, `ZapperQrMethod` and the rest), and its required fields are required parameters. Types several methods use, such as `Account` and `PersonName`, are shared, so `createPayin` checks the parts the method needs before sending and throws `SynqtArgumentException` naming the missing or unexpected field:
 
 ```dart
-final result = await payin.create(const CapitecPayMethod(
-  phoneNumber: '0821234567',
-  customerName: PersonName(lastName: 'Doe'),
-));
+final accepted = await api.createPayin(
+  response.payinId,
+  const Payin(
+    paymentRequested: PaymentRequested(money: money),
+    paymentMethod: CapitecPayMethod(phoneNumber: '0821234567', customerName: PersonName(lastName: 'Doe')),
+    returnUrl: 'https://shop.example.com/payment/return',
+    callbackUrl: 'https://shop.example.com/synqt/callback',
+  ),
+);
+final next = accepted.nextStep(); // the QR code, app link, amount, reference and expiry to show
 ```
 
-Retrying `create` after a network failure is safe: if SYNQT already has the payin, the SDK fetches it instead of creating another.
+Retrying `createPayin` after a network failure is safe: if SYNQT already has the payin, the SDK fetches it instead of creating another.
 
 **Use SYNQT's hosted Payment Web App** when you don't want any payment UI in the app:
 
 ```dart
-final result = await payin.presentPaymentApp(context, merchantCode: 'MID',
+final result = await checkout.presentPaymentApp(context, merchantCode: 'MID',
     paymentMethodCode: 'CAPITEC_PAY',          // optional: open on this method
     prefill: {'phoneNumber': '+27821234567'}); // optional: the payer can still edit it
 switch (result) {
@@ -154,7 +166,7 @@ switch (result) {
   case PaymentAppClosed():
     break; // the payer closed it first
 }
-final status = await payin.status(); // either way, ask where the payment stands
+final detail = await api.getPayin(response.payinId); // either way, ask where the payment stands
 ```
 
 `presentPaymentApp` shows the Payment Web App full screen in a web view, with a Close button, and completes when the payer reaches `returnUrl` (same host and path, any query) or closes it. Back (on iOS, a swipe from the edge) steps back a page, and closes it from the first page. Links to bank and payment apps open outside it. To use the browser instead, `openPaymentApp(merchantCode:)` returns once the browser has the page; the payer then comes back through `returnUrl`, which must be a universal link (iOS) or verified App Link (Android) your app handles. `prefill` uses the Payment Web App's parameter names, not the sheet's field paths: `phoneNumber`, `emailAddress`, `accountName`, `accountNumber`, `upiId`, `idCustomer`, `governmentId`, `passportNumber`, `postalCode`, `city`, `district`.
@@ -165,24 +177,44 @@ final status = await payin.status(); // either way, ask where the payment stands
 |---|---|
 | `Synqt(environment, client: = null)` | The entry point for one environment. Pass your own `http.Client` to control timeouts, proxies or pinning. |
 | `SynqtEnvironment` | `.sandbox`, `.live` or `.stable` (SYNQT's internal platform, not for merchants), with `apiBaseUrl` and `paymentAppBaseUrl`. |
-| `synqt.payin(token:payinId:money:returnUrl:callbackUrl:)` | One order's `Payin`. Throws `SynqtArgumentException` for a malformed ID. |
-| `Money(amount:currencyCode:)` | An amount as decimal text such as `'1250.00'`. `toString()` is the house format, such as `R1,250.00`. |
-| `payin.availablePaymentOptions(segmentCode:)` | `List<PaymentOption>`: `code`, `operators`, `segmentCode` and `name` (null for methods the sheet doesn't support). |
+| `synqt.checkout(token:, payinId:, money:, returnUrl:, callbackUrl:)` | One order's `PayinCheckout`, for the sheet and the Payment Web App. `callbackUrl` is optional. Throws `SynqtArgumentException` for a malformed ID or a `returnUrl` that isn't https. |
+| `MoneyPaymentRequested(amount:, currencyCode:)` | The amount to request, a `num` in major units. `format()` is the house format, such as `R1,250.00`. |
 | `Synqt.directPaymentMethods` | The methods the sheet can collect details for, each with `code` and `name`. |
-| `synqt.paymentOperators(token:)` | Every bank and provider SYNQT knows. Needs a token with `GET /payment-operators`, which `PAYIN_CREATE` tokens lack. |
-| `payin.presentPaymentSheet(context, paymentMethodCode:, prefill:, customerIp:, onPresented:, onPaymentStarted:)` | The Synqt payment sheet. Completes with `CreatePayinResult?`. |
-| `payin.create(paymentMethod, customerIp:)` | Your own UI: send a `PaymentMethod` you built. Returns `CreatePayinResult`. |
-| `payin.presentPaymentApp(context, merchantCode:, paymentMethodCode:, prefill:, extra:, onPresented:)` | The Payment Web App in a full-screen web view. Completes with `PaymentAppReturned` or `PaymentAppClosed`. |
-| `payin.openPaymentApp(...)`, `payin.paymentAppUrl(...)` | The Payment Web App in the browser, or its URL for a web view of your own. |
-| `RedirectResult(httpMethod, url, formData)` | Send the payer to `url`. |
-| `InstructionsResult(paymentMethod, nextStep)` | The payer finishes elsewhere. `paymentMethod` is SYNQT's full `PaymentMethodResponse` (`CapitecPayResponse` and the rest, or `UnknownPaymentMethodResponse`); `nextStep` gathers `appLink`, `qrCodeImageUrl`, `qrCodeData`, `amountToPay`, `reference`, `expiresAt` and `payInto`. |
-| `payin.setExternalReference(reference)` | Sends the payer's bank or UTR reference, for methods that need it. |
-| `payin.status()` | `PayinStatus`: `status` (a `PayinState`, with `isFinal`), `requested`, `fee`, `isTest`, `failureReason` (with `payerMessage`), `paymentMethod`, `createdAt`, `processedAt`. |
+| `synqt.paymentOperators(token:)` | `List<PaymentOperatorIncoming>`: every bank and provider SYNQT knows, each with its `externalProviders`. Needs a token with `GET /payment-operators`, which `PAYIN_CREATE` tokens lack. |
+| `checkout.presentPaymentSheet(context, paymentMethodCode:, prefill:, customerIp:, onPresented:, onPaymentStarted:)` | The Synqt payment sheet. Completes with `PayinAcceptedResponse?` (null when the payer closes the sheet). |
+| `checkout.presentPaymentApp(context, merchantCode:, paymentMethodCode:, prefill:, extra:, onPresented:)` | The Payment Web App in a full-screen web view. Completes with `PaymentAppReturned` or `PaymentAppClosed`. |
+| `checkout.openPaymentApp(...)`, `checkout.paymentAppUrl(...)` | The Payment Web App in the browser, or its URL for a web view of your own. |
+| `IncomingPaymentsApi.create(synqt, accessToken)` | The payin API for one token. |
+| `api.payinAvailablePaymentOptions(paymentRequested)` | `AvailablePayinOptionList`: per method in `data`, its `paymentMethodCode`, `paymentOperators`, `segmentCode` and `name` (null for methods the sheet doesn't support). |
+| `api.createPayin(idPayin, payin)` | Your own UI: send a `Payin` with a `PaymentMethodPayin` you built. Returns `PayinAcceptedResponse`: `PayinAcceptedMethodResponse` (`paymentRequested`, `paymentMethodResponse`) or `PayinAcceptedRedirectResponse` (`paymentRequested`, `redirectTo`). `nextStep()` and `redirect()` read the common parts. |
+| `api.getPayin(idPayin)` | `PayinDetail`: `paymentRequested`, `process` (`status`, `failureReasons`, `isTest`, times), `fee`, `paymentMethodResponse`, `settlement`, `customer`. `isFinal` says whether the status can still change. Show the payer `failureReasons.payerMessage`; SYNQT's own `message` is written for the merchant. |
+| `api.getPayinAccounts(idPayin)` | `PaymentAccountDetail`: the payer's account as entered and as the payment used it. |
+| `api.setPayinExternalReference(idPayin, reference)` | Sends the payer's bank or UTR reference, for methods that need it. |
+| `NextStep` | What the payer does next: `appLink`, `qrCodeImageUrl`, `qrCodeData`, `amountToPay`, `reference`, `expiresAt` and `payInto`. Every `PaymentMethodResponsePayin` gives one with `nextStep()`. |
+| `Redirection` | Where to send the payer: `method` (GET or POST), `url`, and `formData()` for a POST. |
+| `PaymentStatus` | The four known statuses as constants: `processing`, `success`, `failed`, `refused`. |
 | `SynqtApiException` | SYNQT refused the request: `httpCode` and `errors` (`code`, `field`, `description`). Never contains the raw response, because SYNQT echoes what the payer typed in it. |
 | `SynqtArgumentException` | Something the app passed can't be sent: `message`, and `path` naming the field. |
 | `http.ClientException`, `TimeoutException` | Network failures. A call times out if the response hasn't started within 30 seconds. |
 
-A payment method response that doesn't fit its model reads as `UnknownPaymentMethodResponse` rather than failing, so a payin SYNQT has created never surfaces as an error; `nextStep` is read separately and still works. A payin ID can be used once: calling `create` again with the same ID and method is a safe retry, but with another method it throws HTTP 409 `PAYIN_ALREADY_STARTED`.
+Statuses and codes are strings, so a value SYNQT adds later never breaks parsing. A payment method this SDK version doesn't know yet, or a response that doesn't fit its model, reads as `UnknownPaymentMethodResponsePayin` with its `json` rather than failing, so a payin SYNQT has created never surfaces as an error; its `nextStep()` still reads the fields every method uses. A payin ID can be used once: calling `createPayin` again with the same ID and method is a safe retry, but with another method it throws HTTP 409 `PAYIN_ALREADY_STARTED`, and the sheet tells the payer to start a new payment.
+
+## Coming from the Carpentum Java SDK
+
+The API calls and models match the Java SDK's, with Dart's own idioms: classes with named parameters instead of builders, nullable fields instead of `Optional`, and futures.
+
+| Java SDK | This SDK |
+|---|---|
+| `IncomingPaymentsApi.create(context, token)` | `IncomingPaymentsApi.create(Synqt(environment), token)` (the token comes from your backend; there is no `PaymentContext` or secret in an app) |
+| `payinAvailablePaymentOptions(PaymentRequested)` | the same, returning `AvailablePayinOptionList` |
+| `createPayin(idPayin, Payin)` | the same, returning `PayinAcceptedResponse` |
+| `getPayin(idPayin)`, `getPayinAccounts(idPayin)` | the same, returning `PayinDetail` and `PaymentAccountDetail` |
+| `setPayinExternalReference(idPayin, reference)` | the same |
+| `CapitecPayMethod.builder()...build()` | `CapitecPayMethod(...)` |
+| `AccountPayinRequestCapitecPay`, `PersonNameOffline` and other per-method variants | one shared `Account` and `PersonName`, checked per method |
+| `ResponseException` and its subclasses | `SynqtApiException` (`httpCode`, `errors`), `SynqtArgumentException`, and `http.ClientException` or `TimeoutException` |
+
+Unlike the Java SDK, this SDK checks lengths and formats before sending, retries a payin it already created after a 409, and parses a payment method it doesn't know as `UnknownPaymentMethodResponsePayin` instead of failing.
 
 **Match your own screens (optional).** The sheet's building blocks are public: `SynqtCard`, `SynqtTextField` (with a `SynqtKeyboard`), `SynqtDropdown`, `SynqtButton` (`SynqtButtonKind.primary`, `.accent`, `.outline`), `SynqtErrorBanner`, `SynqtLogo`, `SynqtIconView`, the colour tokens `SynqtColors` (`SynqtColors.of(context)`, `.light`, `.dark`, `.magenta`, `.aqua`) and `synqtFont(size, weight:)` for Instrument Sans.
 
@@ -198,7 +230,7 @@ To add a language, copy both files to `<language>` versions (for example `sheet_
 ## Security and compliance
 
 - Never put the merchant's private key or secret key in an app. Tokens come from your backend, one per order, locked to the amount.
-- Only your backend's own status check proves a payment. The return URL, the sheet closing and `payin.status()` do not.
+- Only your backend's own status check proves a payment. The return URL, the sheet closing and `api.getPayin()` in the app do not.
 - This SDK has no card code. CARD is offered only with the separate card add-on, for PCI DSS compliant merchants, which draws, checks and encrypts the card fields itself. The generated `CardMethod` has no raw card number field. The add-on uses this SDK's add-on API (`package:synqt/addon.dart`), which apps never need.
 - Payment details include personal information (ID numbers, account numbers, phone numbers, emails) covered by POPIA. Don't log requests, responses or `SynqtApiException` descriptions alongside customer data.
 - The iOS SDK ships an Apple privacy manifest. A Flutter package cannot add one to the host app, so apps using this SDK on iOS must declare the same data types in their own `PrivacyInfo.xcprivacy`: copy the categories from the iOS SDK's `Sources/SynqtSDK/Resources/PrivacyInfo.xcprivacy`. The same applies to the Google Play data safety form.
@@ -211,18 +243,17 @@ The SYNQT calls, the payment methods and their fields, the field rules, the word
 
 | | iOS | Android | Flutter |
 |---|---|---|---|
-| Amount type | `Decimal` | `BigDecimal` | `String` of decimal text, such as `'1250.00'`. `Money(...)` throws `SynqtArgumentException` if it isn't one, a check the native types make unnecessary |
-| When a hand-built `PaymentMethod` is checked | At `create`, `SynqtArgumentError` | When you construct it, `IllegalArgumentException` | At `create`, `SynqtArgumentException` |
+| Amount type | `Decimal` | `BigDecimal` | `num`, as the spec's number type, exact to 15 significant digits |
+| When a hand-built `PaymentMethodPayin` is checked | At `createPayin`, `SynqtArgumentError` | When you construct it, `IllegalArgumentException` | At `createPayin`, `SynqtArgumentException` |
 | SYNQT refused the request | `SynqtAPIError` | `SynqtException`, an `IOException`, so `catch (e: IOException)` catches it too | `SynqtApiException`, not an `http.ClientException`, so catch both |
 | Network failure | `URLError` | `IOException` | `http.ClientException`, or `TimeoutException` |
 | Timeout | 30 s per request | 15 s to connect, 30 s to read | 30 s until the response starts. The body is then read with no time limit of the SDK's own |
 | Your own HTTP stack | `URLSession` | Not replaceable | `http.Client` |
-| Payer-facing names and failure messages | `name`, `payerMessage` | `name(context)`, `payerMessage(context)` | `name`, `payerMessage`, with no context |
+| Payer-facing names and failure messages | `name`, `payerMessage` | `name(context)`, `payerMessage(context)` | `name`, `payerMessage`, getters with no context |
 | Payment Web App options | `paymentMethodCode`, `prefill` and `extra` | `extra` only, so you add `optionsAvailable` and `allowCustomerDataChange` yourself | As iOS |
 | Payment Web App link | Amount without trailing zeros (`1250`), a space as `%20`, and an `extra` key repeated after a built-in one of the same name | Amount as given (`1250.00`), a space as `+`, and an `extra` key replaces a built-in one | As iOS |
 | Spotting the return URL | When the web view asks to load it | When the web view asks to load it | Also when the page's URL changes without a load request, as some platforms don't ask about every navigation |
 | `intent:` links in the Payment Web App | Not used on iOS | Opened as the intent, in the app it names | Opened as the link it stands for (`intent://pay#Intent;scheme=upi;end` opens `upi://pay`) in any app that claims that scheme. The named app and extras are dropped, and a link with no scheme does nothing |
-| `PayinStatus.requested` when SYNQT leaves it out | `Money(0, "")` | `Money(0, "")` | null |
 | Comparing results | `Equatable` | Data classes | No `==`: compare the fields |
 | When `onPresented` runs | After the slide-in | When the dialog shows. With every field prefilled, `onPaymentStarted` runs first | After the first frame, while the sheet slides in |
 | `openPaymentApp` returns | Whether Safari opened it | Nothing | Whether the browser opened it |
@@ -247,7 +278,7 @@ The SYNQT calls, the payment methods and their fields, the field rules, the word
 
 | | iOS | Android | Flutter |
 |---|---|---|---|
-| Lifecycle | A modal view controller | The sheet and Payment Web App are SDK activities that keep their state through rotation, appearance, font size and language changes | Routes on your app's navigator. They keep their state through rotation and appearance changes, because Flutter's activity template handles those itself (keep its `configChanges`). If Android stops the app while the payer is in another app, the app restarts without the sheet and the future never completes, so check `payin.status()` when your app starts again |
+| Lifecycle | A modal view controller | The sheet and Payment Web App are SDK activities that keep their state through rotation, appearance, font size and language changes | Routes on your app's navigator. They keep their state through rotation and appearance changes, because Flutter's activity template handles those itself (keep its `configChanges`). If Android stops the app while the payer is in another app, the app restarts without the sheet and the future never completes, so check `api.getPayin(payinId)` when your app starts again |
 | Permissions and package visibility | None | Declared in the SDK's manifest | Add `INTERNET` to your app's main `AndroidManifest.xml` |
 | Privacy declarations | Ships `PrivacyInfo.xcprivacy` | Google Play data safety form, filled in by the app | A Flutter package can't add a privacy manifest. Declare the same categories in your own `PrivacyInfo.xcprivacy` and on the Play data safety form |
 | Third-party code in your app | None | AndroidX Annotation and kotlinx-coroutines | `http`, `url_launcher`, `webview_flutter` and `flutter_svg`, and their platform plugins |
@@ -256,11 +287,11 @@ The SYNQT calls, the payment methods and their fields, the field rules, the word
 
 ## Generated code and the SYNQT API version
 
-The payment method models (`lib/src/payment_methods.dart`), the sheet's fields (`lib/src/method_forms.dart`), all of the sheet's text (`lib/src/l10n/form_strings_en.dart` and `sheet_strings_en.dart`), the colours (`lib/src/ui/colors.dart`) and the shared field test cases (`test/field_cases_test.dart`) are generated from SYNQT's OpenAPI spec and SYNQT's shared tables. CARD's raw card number fields are left out of this SDK, as they put the app in PCI DSS scope; only the card add-on has them.
+The payin models (`lib/src/payin_models.dart`: `Payin`, `PayinAcceptedResponse`, `PayinDetail` and the rest, named as in SYNQT's spec and the Carpentum Java SDK), the payment method models (`lib/src/payment_methods.dart`), the sheet's fields (`lib/src/method_forms.dart`), all of the sheet's text (`lib/src/l10n/form_strings_en.dart` and `sheet_strings_en.dart`), the colours (`lib/src/ui/colors.dart`) and the shared field test cases (`test/field_cases_test.dart`) are generated from SYNQT's OpenAPI spec and SYNQT's shared tables. CARD's raw card number fields are left out of this SDK, as they put the app in PCI DSS scope; only the card add-on has them.
 
 They are generated from SYNQT API 2.84 today, and the spec lives with the generator app. A new SYNQT API version replaces the generated files in one commit, and every SYNQT SDK moves to the same version together, so they all ask payers for the same things in the same words.
 
-Dart has no nested types, so where the other SDKs say `PaymentMethod.Account` or `PaymentMethodResponse.Account`, this one says `Account` and `AccountResponse`.
+Dart has no nested types, so where the other SDKs say `PaymentMethodPayin.Account` or `PaymentMethodResponsePayin.Account`, this one says `Account` and `AccountResponse`, and `PaymentMethodResponsePayin.Unknown` is `UnknownPaymentMethodResponsePayin`.
 
 The Android README describes the South African mandatory fields, the "at least one of" tiles and the ID or passport question.
 

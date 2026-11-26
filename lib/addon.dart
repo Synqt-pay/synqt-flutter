@@ -4,5 +4,7 @@
 library;
 
 export 'src/addon.dart' show MethodSection, MethodSectionException, SheetMethod, addSheetMethod;
-export 'src/payin.dart' show SynqtAddonPayin;
+export 'src/incoming_payments_api.dart' show SynqtAddonApi;
+export 'src/payin_checkout.dart' show SynqtAddonCheckout;
+export 'src/payment_methods.dart' show AddonPaymentMethod;
 export 'src/strings.dart' show text;

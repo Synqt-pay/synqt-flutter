@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'addon.dart';
 import 'method_form.dart';
+import 'payin_models.dart';
 import 'payment_methods.dart';
 import 'payment_sheet_model.dart';
 import 'results.dart';
@@ -19,12 +20,12 @@ export 'payment_sheet_model.dart' show PaymentSheetModel, PaymentSummary;
 /// Shows [model] as a bottom sheet over [context], or as a centred card on a tablet (600 wide or more on its shorter
 /// side), and completes with its result once, however it closes. Only the close button, Done, or the system back
 /// gesture close it, never a tap outside or a swipe down, and none of them while a payment is being sent.
-Future<CreatePayinResult?> showPaymentSheet(
+Future<PayinAcceptedResponse?> showPaymentSheet(
   BuildContext context,
   PaymentSheetModel model, {
   VoidCallback? onPresented,
 }) {
-  final done = Completer<CreatePayinResult?>();
+  final done = Completer<PayinAcceptedResponse?>();
   final code = model.form.code;
   final view = View.of(context);
   final direction = Directionality.maybeOf(context) ?? TextDirection.ltr;
@@ -296,7 +297,10 @@ class _PaymentSheetState extends State<_PaymentSheet> {
         padding: EdgeInsets.only(top: 24, bottom: model.intro == null ? 16 : 8),
         child: Semantics(
           header: true,
-          child: Text(text('synqt_sheet_your_details'), style: synqtFont(20, weight: FontWeight.w600, color: colors.text)),
+          child: Text(
+            text('synqt_sheet_your_details'),
+            style: synqtFont(20, weight: FontWeight.w600, color: colors.text),
+          ),
         ),
       ),
       if (model.intro case final intro?)
@@ -623,7 +627,11 @@ class _SummaryCard extends StatelessWidget {
                     SynqtIconView(SynqtIcon.lock, size: 16, color: colors.textMuted),
                     const SizedBox(width: 8),
                     Flexible(
-                      child: Text(text('synqt_sheet_secure_checkout'), textAlign: TextAlign.center, style: synqtFont(13, color: colors.textMuted)),
+                      child: Text(
+                        text('synqt_sheet_secure_checkout'),
+                        textAlign: TextAlign.center,
+                        style: synqtFont(13, color: colors.textMuted),
+                      ),
                     ),
                   ],
                 ),
@@ -730,7 +738,7 @@ class _NextStepView extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = SynqtColors.of(context);
     final transfer = next.payInto;
-    final amount = next.amountToPay?.toString() ?? model.summary.amount;
+    final amount = next.amountToPay?.format() ?? model.summary.amount;
     final name = model.methodName;
     final how = transfer != null
         ? text('synqt_next_transfer')
@@ -776,7 +784,7 @@ class _NextStepView extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              text('synqt_next_pay_exactly', [exact.toString()]),
+              text('synqt_next_pay_exactly', [exact.format() ?? amount]),
               style: synqtFont(16, weight: FontWeight.w500, color: colors.text, tabular: true),
             ),
           ),
@@ -784,12 +792,10 @@ class _NextStepView extends StatelessWidget {
           // A banking app wants the number alone, not "R100.00".
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: _transferCard(
-              transfer,
-              amount,
-              exact?.plainAmount ?? model.summary.amount.replaceAll(RegExp(r'[^0-9.]'), ''),
-              colors,
-            ),
+            child: _transferCard(transfer, amount, switch (exact?.amount) {
+              final exactAmount? => amountText(exactAmount),
+              null => model.summary.amount.replaceAll(RegExp(r'[^0-9.]'), ''),
+            }, colors),
           ),
           _notice(colors),
         ] else if (next.reference != null)

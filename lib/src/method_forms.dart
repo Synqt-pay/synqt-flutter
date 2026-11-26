@@ -3,7 +3,7 @@
 import 'method_form.dart';
 import 'payment_methods.dart';
 
-/// One entry per direct API payment method a payer can fill in, shown by `Payin.presentPaymentSheet`.
+/// One entry per direct API payment method a payer can fill in, shown by `PayinCheckout.presentPaymentSheet`.
 final List<MethodForm> methodForms = [
   MethodForm(
     'ABSA_PAY',

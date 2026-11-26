@@ -4,7 +4,6 @@ import 'package:synqt/addon.dart';
 import 'package:synqt/src/method_form.dart';
 import 'package:synqt/src/method_forms.dart';
 import 'package:synqt/src/payment_sheet_model.dart';
-import 'package:synqt/src/results.dart';
 import 'package:synqt/synqt.dart';
 
 class _Method implements SheetMethod {
@@ -21,7 +20,7 @@ class _Method implements SheetMethod {
   bool get secure => false;
 
   @override
-  MethodSection section(Payin payin, Map<String, String> prefill) => fields!;
+  MethodSection section(PayinCheckout checkout, Map<String, String> prefill) => fields!;
 }
 
 class _Section implements MethodSection {
@@ -57,7 +56,7 @@ void main() {
     addSheetMethod(_Method('TEST_ADDON'));
     expect(Synqt.directPaymentMethods.where((method) => method.code == 'TEST_ADDON').length, 1);
     expect(const DirectPaymentMethod('TEST_ADDON').name, 'Test add-on');
-    expect(const PaymentOption(code: 'TEST_ADDON').name, 'Test add-on');
+    expect(const AvailablePayinOption(paymentMethodCode: 'TEST_ADDON').name, 'Test add-on');
   });
 
   test('built-in methods cannot be replaced, and CARD needs the add-on', () {
@@ -66,10 +65,22 @@ void main() {
   });
 
   test('a 3-D Secure redirect becomes a redirect', () {
-    final result = parseCreatePayin(
-      '{"paymentMethodResponse":{"paymentMethodCode":"CARD","userInteraction":{"type":"REDIRECT","url":"https://acs.example/3ds"}}}',
-    );
-    expect(result, isA<RedirectResult>().having((redirect) => redirect.url, 'url', 'https://acs.example/3ds'));
+    final result = PayinAcceptedResponse.fromJson(const {
+      'paymentMethodResponse': {
+        'paymentMethodCode': 'CARD',
+        'userInteraction': {'type': 'REDIRECT', 'url': 'https://acs.example/3ds'},
+      },
+    });
+    expect(result.redirect()?.method, 'GET');
+    expect(result.redirect()?.url, 'https://acs.example/3ds');
+    // Other interactions stay on the method response for the app to show.
+    final form = PayinAcceptedResponse.fromJson(const {
+      'paymentMethodResponse': {
+        'paymentMethodCode': 'CARD',
+        'userInteraction': {'type': 'FORM'},
+      },
+    });
+    expect(form.redirect(), isNull);
   });
 
   test('a form with nothing to enter says so; one with fields has no intro', () {
@@ -92,7 +103,7 @@ void main() {
     late List<Map<String, Object?>> sent;
     late List<String> said;
     late PaymentSheetModel model;
-    Future<CreatePayinResult> Function(Map<String, Object?>) reply = (_) async => throw StateError('unset');
+    Future<PayinAcceptedResponse> Function(Map<String, Object?>) reply = (_) async => throw StateError('unset');
 
     setUp(() {
       section = _Section();
@@ -105,8 +116,10 @@ void main() {
         operators: const [],
         summary: const PaymentSummary(amount: 'R1.00', merchant: null, method: 'Test add-on', reference: 'o-1'),
         section: section,
-        submit: (_) => throw StateError('not for add-ons'),
-        submitJson: (json) {
+        submit: (method) {
+          // An add-on's method arrives as its own JSON, under the sheet's method code.
+          expect(method, isA<AddonPaymentMethod>());
+          final json = method.toJson();
           sent.add(json);
           return reply(json);
         },

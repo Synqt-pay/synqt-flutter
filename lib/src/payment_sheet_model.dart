@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import 'addon.dart';
 import 'method_form.dart';
+import 'payin_models.dart';
 import 'payment_methods.dart';
 import 'results.dart';
 import 'results.dart' as results show methodName;
@@ -31,15 +32,13 @@ class PaymentSheetModel extends ChangeNotifier {
   PaymentSheetModel({
     required this.form,
     required Map<String, String> prefill,
-    required List<PaymentOperator>? operators,
+    required List<PaymentOperatorIncoming>? operators,
     required this.summary,
     this.section,
-    required Future<CreatePayinResult> Function(PaymentMethod) submit,
-    Future<CreatePayinResult> Function(Map<String, Object?>)? submitJson,
+    required Future<PayinAcceptedResponse> Function(PaymentMethodPayin) submit,
   }) : _operators = operators ?? const [],
        banksFailed = operators == null,
        _submit = submit,
-       _submitJson = submitJson,
        methodName = results.methodName(form.code) ?? text(form.name),
        inputs = form.fields
            .where((field) => !(field.kind == FieldKind.paymentOperator && (operators ?? []).isEmpty && !field.required))
@@ -76,18 +75,15 @@ class PaymentSheetModel extends ChangeNotifier {
   final MethodForm form;
   final PaymentSummary summary;
   final String methodName;
-  List<PaymentOperator> _operators;
+  List<PaymentOperatorIncoming> _operators;
 
   /// SYNQT's list of banks and providers could not be loaded, so a mandatory bank or provider field can't be filled in.
   bool banksFailed;
   bool loadingBanks = false;
-  final Future<CreatePayinResult> Function(PaymentMethod) _submit;
+  final Future<PayinAcceptedResponse> Function(PaymentMethodPayin) _submit;
 
   /// An add-on method's own fields, which it draws, checks and builds itself.
   final MethodSection? section;
-
-  /// Sends the `paymentMethod` object [section] built.
-  final Future<CreatePayinResult> Function(Map<String, Object?>)? _submitJson;
 
   /// The fields the payer could fill in: an optional bank with no list from SYNQT has nothing to choose, so it goes.
   final List<FormInput> inputs;
@@ -115,12 +111,12 @@ class PaymentSheetModel extends ChangeNotifier {
   String? _focused;
 
   /// The payin result once SYNQT accepted it, returned however the payer closes the sheet afterwards.
-  CreatePayinResult? accepted;
+  PayinAcceptedResponse? accepted;
   bool _openedApp = false;
   bool _finished = false;
 
   // Set by the presenter.
-  void Function(CreatePayinResult?) onFinish = (_) {};
+  void Function(PayinAcceptedResponse?) onFinish = (_) {};
   VoidCallback onPaymentStarted = () {};
 
   /// Opens a link in the method's own app if it is installed; false if nothing took it.
@@ -134,7 +130,7 @@ class PaymentSheetModel extends ChangeNotifier {
   void Function(String) announce = (_) {};
 
   /// Loads the banks and providers again, as the presenter first did; null if they still could not be loaded.
-  Future<List<PaymentOperator>?> Function() reloadOperators = () async => null;
+  Future<List<PaymentOperatorIncoming>?> Function() reloadOperators = () async => null;
 
   /// Everything mandatory came from the app, so pay straight away; the processing view covers the form, and any
   /// refusal brings the form back with the error.
@@ -158,20 +154,22 @@ class PaymentSheetModel extends ChangeNotifier {
     return [(value: '', label: header), ...choices];
   }
 
-  static List<({String value, String label})>? _options(FormInput field, List<PaymentOperator> operators) =>
-      switch (field.kind) {
-        FieldKind.choice => [for (final option in field.options) (value: option.value, label: text(option.label))],
-        FieldKind.paymentOperator =>
-          operators.isEmpty
-              ? null
-              : [for (final paymentOperator in operators) (value: paymentOperator.code, label: paymentOperator.name)],
-        // Typed when SYNQT lists no providers.
-        FieldKind.provider =>
-          providers(operators).isEmpty
-              ? null
-              : [for (final provider in providers(operators)) (value: provider.code, label: provider.name)],
-        _ => null,
-      };
+  static List<({String value, String label})>? _options(FormInput field, List<PaymentOperatorIncoming> operators) {
+    final choices = switch (field.kind) {
+      FieldKind.choice => [for (final option in field.options) (value: option.value, label: text(option.label))],
+      // Entries without a code are skipped; a missing name shows the code.
+      FieldKind.paymentOperator => [
+        for (final paymentOperator in operators)
+          if (paymentOperator.code case final code?) (value: code, label: paymentOperator.name ?? code),
+      ],
+      // Typed when SYNQT lists no providers.
+      FieldKind.provider => [
+        for (final provider in providers(operators)) (value: provider.code!, label: provider.name ?? provider.code!),
+      ],
+      _ => null,
+    };
+    return field.kind != FieldKind.choice && (choices?.isEmpty ?? false) ? null : choices;
+  }
 
   /// A mandatory bank or provider field shown as "couldn't load" with Try again, as the payer can't fill it in. An
   /// optional one stays as it was without a list: a bank field is hidden, a provider field takes a typed code.
@@ -301,10 +299,10 @@ class PaymentSheetModel extends ChangeNotifier {
       return _startSending(() async {
         final json = await section.paymentMethod();
         onPaymentStarted();
-        return _submitJson!(json);
+        return _submit(AddonPaymentMethod(form.code, json));
       });
     }
-    final PaymentMethod method;
+    final PaymentMethodPayin method;
     try {
       method = form.build(FormValues(current));
     } on SynqtArgumentException catch (error) {
@@ -317,21 +315,19 @@ class PaymentSheetModel extends ChangeNotifier {
   }
 
   /// While the request runs the form, close button included, is covered so the sheet cannot be closed half way through.
-  void _startSending(Future<CreatePayinResult> Function() request) {
+  void _startSending(Future<PayinAcceptedResponse> Function() request) {
     processing = true;
     _changed();
     unawaited(_send(request));
   }
 
-  Future<void> _send(Future<CreatePayinResult> Function() request) async {
+  Future<void> _send(Future<PayinAcceptedResponse> Function() request) async {
     try {
       final result = await request();
-      if (result is InstructionsResult &&
-          (result.nextStep.appLink != null ||
-              result.nextStep.qrCodeImageUrl != null ||
-              result.nextStep.payInto != null)) {
+      final next = result.nextStep();
+      if (next != null && (next.appLink != null || next.qrCodeImageUrl != null || next.payInto != null)) {
         accepted = result;
-        _showNextStep(result.nextStep);
+        _showNextStep(next);
       } else {
         finish(result);
       }
@@ -352,7 +348,7 @@ class PaymentSheetModel extends ChangeNotifier {
   }
 
   /// Completes the sheet once, however it is closed.
-  void finish(CreatePayinResult? result) {
+  void finish(PayinAcceptedResponse? result) {
     if (_finished) return;
     _finished = true;
     onFinish(result);

@@ -8,7 +8,7 @@ import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'strings.dart';
 import 'ui/theme.dart';
 
-/// How the Payment Web App closed. Either way, ask `Payin.status()` where the payment stands.
+/// How the Payment Web App closed. Either way, ask `IncomingPaymentsApi.getPayin` where the payment stands.
 sealed class PaymentAppResult {
   const PaymentAppResult();
 }

@@ -1,23 +1,23 @@
 /// Take SYNQT payins in a Flutter app on iOS and Android. Start with [Synqt]; see README.md.
 library;
 
-export 'src/payin.dart' show Payin;
+export 'src/incoming_payments_api.dart' show IncomingPaymentsApi;
+export 'src/payin_checkout.dart' show PayinCheckout;
+export 'src/payin_models.dart';
 export 'src/payment_app.dart' show PaymentAppClosed, PaymentAppResult, PaymentAppReturned;
-export 'src/payment_methods.dart' hide validatePaymentMethod;
+export 'src/payment_methods.dart' hide AddonPaymentMethod, validatePaymentMethod;
 export 'src/results.dart'
     show
-        CreatePayinResult,
+        AvailablePayinOptionName,
         DirectPaymentMethod,
-        ExternalProvider,
-        FailureReason,
-        InstructionsResult,
-        Money,
+        FailureReasonsPayerMessage,
+        MoneyPaymentRequestedFormat,
+        MoneyResponseFormat,
         NextStep,
-        PayinState,
-        PayinStatus,
-        PaymentOperator,
-        PaymentOption,
-        RedirectResult,
+        PayinAcceptedResponseSteps,
+        PayinDetailIsFinal,
+        PaymentStatus,
+        RedirectionFormData,
         SynqtApiException,
         SynqtArgumentException,
         SynqtErrorReason;
