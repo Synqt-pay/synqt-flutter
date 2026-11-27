@@ -1,7 +1,6 @@
 // The sheet's line icons and the Synqt wordmark, as SVG for flutter_svg. Icon paths are Phosphor Icons, Regular
 // weight (@phosphor-icons/core 2.1.1, MIT licence, see THIRD_PARTY_NOTICES.md), on Phosphor's 256 by 256 grid; the
-// wordmark paths and offsets are the synqt-brand-design skill's synqt-logo-positive.svg. Copied from the iOS SDK's
-// Icons.swift. Never redraw them.
+// wordmark paths and offsets are those of synqt-logo-positive.svg. Never redraw them.
 // ignore_for_file: lines_longer_than_80_chars
 
 const iconPaths = <String, String>{

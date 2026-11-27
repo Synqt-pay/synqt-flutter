@@ -481,7 +481,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   Widget _processing(SynqtColors colors) => ColoredBox(
     color: colors.surface,
     child: Semantics(
-      liveRegion: true, // read out as it appears
+      liveRegion: true,
       child: MergeSemantics(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -842,7 +842,7 @@ class _NextStepView extends StatelessWidget {
     );
   }
 
-  /// What the payer must know before transferring. Draft wording, based on the Payment Web App's notice.
+  /// What the payer must know before transferring.
   Widget _notice(SynqtColors colors) {
     const items = [
       'synqt_next_notice_exact',

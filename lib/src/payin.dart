@@ -261,7 +261,7 @@ Future<T?> _orNull<T>(Future<T?> Function() block) async {
   }
 }
 
-/// As Java's URLEncoder leaves them, so the link matches the Android and iOS SDKs': letters, digits and `-._*`.
+/// As Java's URLEncoder leaves them: letters, digits and `-._*`.
 String _enc(String value) => [
   for (final byte in utf8.encode(value))
     RegExp(r'[A-Za-z0-9\-._*]').hasMatch(String.fromCharCode(byte)) && byte < 128

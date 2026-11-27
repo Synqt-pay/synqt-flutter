@@ -20,7 +20,7 @@ final class Money {
   final String amount;
   final String currencyCode;
 
-  /// The amount without trailing zeros, such as `12.3` for `12.30`, as the iOS SDK writes it into links.
+  /// The amount without trailing zeros, such as `12.3` for `12.30`, as written into links.
   String get plainAmount => _plain(amount);
 
   // shortcut: JSON numbers are written through a double, exact to 15 significant digits; send raw JSON if SYNQT ever takes longer amounts.
@@ -301,7 +301,7 @@ final class SynqtArgumentException implements Exception {
   String toString() => message;
 }
 
-// Loose JSON reading, as the other SDKs do: a missing, null or empty value reads as null rather than failing.
+// Loose JSON reading: a missing, null or empty value reads as null rather than failing.
 
 /// The value as text, or null when it is missing, null, empty or not a scalar.
 String? jsonText(Object? value) => switch (value) {
@@ -380,7 +380,7 @@ PaymentMethodResponse parseMethodResponse(Map<String, Object?> json) {
   try {
     return PaymentMethodResponse.fromJson(json);
   } catch (_) {
-    // A TypeError from a field of the wrong type: the whole method reads as unknown, as on iOS and Android.
+    // A TypeError from a field of the wrong type: the whole method reads as unknown.
     return UnknownPaymentMethodResponse(jsonText(json['paymentMethodCode']) ?? '');
   }
 }
@@ -466,7 +466,7 @@ Money? parseMoney(Object? json) {
   return Money(amount: amount, currencyCode: jsonText(map!['currencyCode']) ?? '');
 }
 
-/// Rand as R1,250.00 (the synqt-output-format convention); other currencies as "USD 1,250.00". Keeps extra decimals
+/// Rand as R1,250.00; other currencies as "USD 1,250.00". Keeps extra decimals
 /// the amount really has, so nothing is rounded away.
 String formatMoney(String amount, String currencyCode) {
   final negative = amount.startsWith('-');
