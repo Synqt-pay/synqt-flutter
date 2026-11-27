@@ -4,8 +4,7 @@ import 'l10n/form_strings_en.dart';
 import 'l10n/sheet_strings_en.dart';
 
 /// Payer-facing text by language. To add one, copy both English files to `<language>` versions, translate them and
-/// list them here, such as `'af': {...formStringsAf, ...sheetStringsAf}`. Keys are the Android SDK's string resource
-/// names, so one translation serves every platform.
+/// list them here, such as `'af': {...formStringsAf, ...sheetStringsAf}`.
 const _translations = <String, Map<String, String>>{
   'en': {...formStringsEn, ...sheetStringsEn},
 };

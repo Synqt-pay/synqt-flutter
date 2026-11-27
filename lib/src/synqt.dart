@@ -11,7 +11,7 @@ import 'results.dart';
 enum SynqtEnvironment {
   sandbox('https://api.sandbox.synqt.io', 'https://payment.sandbox.synqt.io/'),
 
-  /// SYNQT internal development platform, as in the WordPress plugin. Not for merchants.
+  /// SYNQT internal development platform. Not for merchants.
   stable('https://api.stable.aopay.io', 'https://payment.stable.aopay.io/'),
   live('https://api.synqt.io', 'https://payment.synqt.io/');
 

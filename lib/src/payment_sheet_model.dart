@@ -218,7 +218,7 @@ class PaymentSheetModel extends ChangeNotifier {
   /// Only a form with nothing to enter gets an intro line.
   String? get intro => inputs.isEmpty && section == null ? text('synqt_sheet_intro_nothing_to_enter') : null;
 
-  /// The payer typed in a field. As the Android sheet's length filter, longer input is cut off.
+  /// The payer typed in a field. Input longer than the field's limit is cut off.
   void setValue(FormInput field, String value) {
     values[field.path] = field.maxLength != null && value.runes.length > field.maxLength!
         ? String.fromCharCodes(value.runes.take(field.maxLength!))
